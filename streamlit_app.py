@@ -9,15 +9,27 @@ import os
 import re
 import PyPDF2
 
-# 1. 페이지 설정: layout="wide"를 제거하여 기본 중앙 정렬을 사용합니다.
+# 1. 페이지 설정
 st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢")
 
-# 중앙 정렬을 위한 커스텀 CSS (채팅 메시지 너비 조절)
+# --- 중앙 정렬 및 글씨 크기 조절을 위한 커스텀 CSS ---
 st.markdown("""
     <style>
+    /* 메인 컨테이너 너비 제한 (중앙 집중) */
     .block-container {
-        max-width: 800px;
+        max-width: 850px;
         padding-top: 2rem;
+    }
+    /* 인삿말 타이틀 스타일링 */
+    .greeting-title {
+        font-size: 28px !important;
+        font-weight: 700;
+        color: #31333F;
+        margin-bottom: 5px;
+    }
+    .greeting-subtitle {
+        font-size: 18px !important;
+        color: #555;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -144,14 +156,12 @@ if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 
 # [로그인 화면]
 if not st.session_state["logged_in"]:
-    # 로그인 폼도 중앙에 배치하기 위해 컬럼 활용
     _, center_col, _ = st.columns([1, 4, 1])
     with center_col:
         st.header("🔒 임직원 접속 (신원확인)")
         with st.form("login_form"):
             input_name = st.text_input("성명")
             input_pw = st.text_input("비밀번호 (휴대폰 뒷 4자리)", type="password")
-            
             st.info("💡 민원 데이터 관리를 위해 해당 임직원 신원 확인을 요청드립니다.")
 
             if st.form_submit_button("접속하기", use_container_width=True):
@@ -170,44 +180,47 @@ if not st.session_state["logged_in"]:
 else:
     user = st.session_state["user_info"]
     
-    # --- 좌측 레이아웃(사이드바) 최적화 ---
+    # --- 좌측 레이아웃(사이드바) ---
     with st.sidebar:
-        # 오류 해결: 이미지 URL이 잘못되었을 경우를 대비해 텍스트 로고 사용 또는 경로 확인
-        # 아래 URL이 작동하지 않으면 st.title("🏢 KCIM") 등으로 대체하세요.
-        try:
-            st.image("https://www.kcim.co.kr/img/common/logo.png", width=180)
-        except:
-            st.title("🏢 KCIM")
-            
+        # 오류 해결: 깨진 이미지 대신 텍스트 로고 사용 (URL 확인 필요 시 수정)
+        st.markdown("<h2 style='text-align: center; color: #FF4B4B;'>🏢 KCIM</h2>", unsafe_allow_html=True)
         st.markdown("---")
         st.subheader("👤 접속 정보")
         st.success(f"**{user['name']} {user['rank']}**")
         st.caption(f"🏢 {user['dept']}")
-        
         st.markdown("---")
         st.subheader("🚀 주요 서비스")
         st.markdown("- 연차/근태 문의\n- 시설/차량 관리\n- 사내 규정 검색")
-        
         st.markdown("---")
         if st.button("🚪 로그아웃", use_container_width=True):
             st.session_state.clear()
             st.rerun()
 
-    # --- 메인 채팅 화면 (자동으로 중앙 정렬됨) ---
+    # --- 메인 채팅 화면 ---
     if "messages" not in st.session_state:
-        # 질문 요청사항 반영: 민원인의 이름과 직급을 호출
-        greeting = f"**{user['name']} {user['rank']}님**, 반갑습니다! 👋\n오늘은 **복지, 규정, 시설 이용** 등 어떤 점이 궁금하신가요?"
-        st.session_state["messages"] = [{"role": "assistant", "content": greeting}]
+        # 요청사항 반영: 이름과 직급을 크게 표시한 HTML 인삿말
+        greeting_html = f"""
+        <div style="margin-bottom: 20px;">
+            <p class="greeting-title">{user['name']} {user['rank']}님, 반갑습니다! 👋</p>
+            <p class="greeting-subtitle">오늘은 복지, 규정, 시설 문의 등 무엇을 도와드릴까요?</p>
+        </div>
+        """
+        st.session_state["messages"] = [{"role": "assistant", "content": greeting_html, "is_html": True}]
     
     if "awaiting_confirmation" not in st.session_state: st.session_state["awaiting_confirmation"] = False
 
-    # 채팅 메시지 렌더링
+    # 채팅 기록 표시
     for msg in st.session_state.messages:
-        st.chat_message(msg["role"]).write(msg["content"])
+        with st.chat_message(msg["role"]):
+            if msg.get("is_html"):
+                st.markdown(msg["content"], unsafe_allow_html=True)
+            else:
+                st.write(msg["content"])
 
     if prompt := st.chat_input("문의 내용을 입력하세요"):
         st.session_state.messages.append({"role": "user", "content": prompt})
-        st.chat_message("user").write(prompt)
+        with st.chat_message("user"):
+            st.write(prompt)
 
         if st.session_state["awaiting_confirmation"]:
             if check_finish_intent(prompt) == "FINISH":
@@ -220,7 +233,7 @@ else:
         if not st.session_state["awaiting_confirmation"]:
             system_instruction = f"""
             너는 1990년 창립된 건설 IT 선도 기업 KCIM의 HR/총무 AI 매니저야. [cite: 2026-01-02]
-            {user['name']} {user['rank']}님에게 친절하고 정중하게 답변해줘.
+            임직원인 {user['name']} {user['rank']}님에게 친절하고 정중하게 답변해줘.
 
             [사내 데이터]
             {ORG_CHART_DATA}
@@ -230,7 +243,7 @@ else:
 
             [원칙]
             1. 안내 번호: 02-772-5806.
-            2. 담당자 언급: 반드시 'OOO 매니저' 또는 'OOO 책임'이라고 호칭해.
+            2. 담당자 언급: 반드시 '성함 + 매니저/책임' 직급을 붙여서 호칭해.
             3. 시설/차량/숙소: "HR팀 이경한 매니저에게 문의바랍니다." 안내 및 [ACTION] 태그 포함. [cite: 2026-01-02]
             4. 답변 끝에 반드시 [CATEGORY:분류명] 태그 포함.
             """
@@ -250,8 +263,9 @@ else:
             
             save_to_sheet(user['dept'], user['name'], user['rank'], category, summarize_text(prompt), summarize_text(clean_ans), final_status)
 
-            # 마지막 질문에도 이름과 직급 포함
+            # 마지막 질문
             full_response = clean_ans + f"\n\n**{user['name']} {user['rank']}님, 더 궁금하신 점이 있으실까요?**"
             st.session_state.messages.append({"role": "assistant", "content": full_response})
-            st.chat_message("assistant").write(full_response)
+            with st.chat_message("assistant"):
+                st.write(full_response)
             st.session_state["awaiting_confirmation"] = True
