@@ -175,4 +175,73 @@ else:
     if "messages" not in st.session_state:
         st.session_state["messages"] = [{"role": "assistant", "content": "규정이나 결재 관련 궁금한 점이 있으신가요?"}]
     
-    if "awaiting_confirmation" not in st.
+    if "awaiting_confirmation" not in st.session_state:
+        st.session_state["awaiting_confirmation"] = False
+
+    for msg in st.session_state.messages:
+        st.chat_message(msg["role"]).write(msg["content"])
+
+    if prompt := st.chat_input("내용을 입력하세요"):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        st.chat_message("user").write(prompt)
+
+        # [CASE 1] 종료 확인
+        if st.session_state["awaiting_confirmation"]:
+            intent = check_finish_intent(prompt)
+            if intent == "FINISH":
+                end_msg = "늘 좋은 하루 보내세요😊"
+                st.session_state.messages.append({"role": "assistant", "content": end_msg})
+                st.chat_message("assistant").write(end_msg)
+                st.session_state["awaiting_confirmation"] = False
+                st.stop() 
+            else:
+                st.session_state["awaiting_confirmation"] = False
+
+        # [CASE 2] 답변 생성 (하이브리드 모드)
+        if not st.session_state["awaiting_confirmation"]:
+            
+            system_instruction = f"""
+            너는 KCIM의 HR/총무 AI 매니저야. 아래 [사고 과정]을 순서대로 거쳐서 답변해.
+
+            [1단계: 질문자 파악]
+            - 질문자: {user['name']} ({user['dept']} {user['rank']})
+            
+            [2단계: 사내 데이터 우선 검색]
+            {ORG_CHART_DATA}
+            {COMPANY_RULES}
+
+            [3단계: 답변 작성 원칙 (중요!)]
+            1. (사내 자료에 답이 있는 경우): 무조건 사내 자료를 기준으로 답변해.
+            2. (사내 자료에 없지만, 일반적인 법률/지식인 경우):
+               - 네가 학습한 일반 지식(근로기준법, 세법 등)을 활용해서 답변해.
+               - 단, 답변 시작 전에 반드시 "⚠️ 이 내용은 사내 규정집에는 없으며, 일반적인 기준에 따른 안내입니다." 라는 경고 문구를 붙여.
+            3. (사내 자료에도 없고, 일반 지식도 아닌 '회사 고유 정보'인 경우):
+               - 예: "우리 회사 회식비 얼마야?", "내 자리 어디야?" 등
+               - 절대 지어내지 말고, 업무분장표를 보고 담당자를 찾아 연결해줘.
+               - "이 부분은 규정집에 없어 확인이 필요합니다. OOO 담당자님께 문의해주세요."라고 하고 [ACTION] 태그를 붙여.
+            """
+            
+            try:
+                completion = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[{"role": "system", "content": system_instruction}, {"role": "user", "content": prompt}]
+                )
+                raw_response = completion.choices[0].message.content
+            
+            except Exception as e:
+                st.error(f"오류: {e}")
+                raw_response = "[INFO] 시스템 오류가 발생했습니다."
+
+            if "[ACTION]" in raw_response:
+                final_status = "담당자확인필요"
+                clean_response = raw_response.replace("[ACTION]", "").strip()
+            else:
+                final_status = "처리완료"
+                clean_response = raw_response.replace("[INFO]", "").strip()
+
+            save_to_sheet(user['dept'], user['name'], user['rank'], prompt, clean_response, final_status)
+
+            full_response = clean_response + "\n\n**더 이상의 민원은 없으실까요?**"
+            st.session_state.messages.append({"role": "assistant", "content": full_response})
+            st.chat_message("assistant").write(full_response)
+            st.session_state["awaiting_confirmation"] = True
