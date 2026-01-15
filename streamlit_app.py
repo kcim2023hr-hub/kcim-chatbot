@@ -12,7 +12,7 @@ import PyPDF2
 # 1. 페이지 설정
 st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢")
 
-# --- 중앙 정렬 및 글씨 크기 조절을 위한 커스텀 CSS ---
+# --- 커스텀 CSS: 중앙 정렬, 글씨 크기 및 사이드바 스타일링 ---
 st.markdown("""
     <style>
     /* 메인 컨테이너 너비 제한 (중앙 집중) */
@@ -22,14 +22,22 @@ st.markdown("""
     }
     /* 인삿말 타이틀 스타일링 */
     .greeting-title {
-        font-size: 28px !important;
-        font-weight: 700;
-        color: #31333F;
-        margin-bottom: 5px;
+        font-size: 32px !important;
+        font-weight: 800;
+        color: #1E1E1E;
+        margin-bottom: 8px;
     }
     .greeting-subtitle {
+        font-size: 20px !important;
+        color: #444;
+        margin-bottom: 25px;
+    }
+    /* 사이드바 부서명 크기 조절 */
+    .sidebar-dept {
         font-size: 18px !important;
-        color: #555;
+        font-weight: 600;
+        color: #666;
+        margin-top: -10px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -95,10 +103,10 @@ def load_data():
 
 ORG_CHART_DATA, COMPANY_RULES, INTRANET_GUIDE = load_data()
 
-# 업무 분장 데이터 [cite: 2026-01-02]
+# 업무 분장 데이터
 WORK_DISTRIBUTION = """
 [경영관리본부 업무 분장표]
-- 이경한 매니저: 사옥/법인차량 관리, 현장 숙소 관리, 근태 관리, 행사 기획/실행, 임직원 제도 수립 [cite: 2026-01-02]
+- 이경한 매니저: 사옥/법인차량 관리, 현장 숙소 관리, 근태 관리, 행사 기획/실행, 제증명 발급, 지출결의(출장/숙소), 간식구매
 - 김병찬 매니저: 제도 공지, 위임전결, 취업규칙, 평가보상
 - 백다영 매니저: 교육(리더/법정), 채용, 입퇴사 안내
 - 김승민 책임: 품의서 관리, 세금계산서, 법인카드 비용처리, 숙소 비용 집행
@@ -180,17 +188,32 @@ if not st.session_state["logged_in"]:
 else:
     user = st.session_state["user_info"]
     
-    # --- 좌측 레이아웃(사이드바) ---
+    # --- 좌측 패널(사이드바) 최적화 ---
     with st.sidebar:
-        # 오류 해결: 깨진 이미지 대신 텍스트 로고 사용 (URL 확인 필요 시 수정)
-        st.markdown("<h2 style='text-align: center; color: #FF4B4B;'>🏢 KCIM</h2>", unsafe_allow_html=True)
+        # 로고 영역 (이미지 파일 준비 시 경로를 'logo.png' 등으로 수정하세요)
+        # st.image("logo.png", use_column_width=True) # 파일이 있을 경우 주석 해제
+        st.markdown("<h2 style='text-align: center; color: #E74C3C;'>🏢 KCIM</h2>", unsafe_allow_html=True)
         st.markdown("---")
+        
         st.subheader("👤 접속 정보")
         st.success(f"**{user['name']} {user['rank']}**")
-        st.caption(f"🏢 {user['dept']}")
+        # 팀명(부서명) 크기 키우기 적용
+        st.markdown(f"<p class='sidebar-dept'>🏢 {user['dept']}</p>", unsafe_allow_html=True)
+        
         st.markdown("---")
-        st.subheader("🚀 주요 서비스")
-        st.markdown("- 연차/근태 문의\n- 시설/차량 관리\n- 사내 규정 검색")
+        
+        # 주요 서비스 확장 (업무 분장 기반 추천)
+        st.subheader("🚀 주요 서비스 안내")
+        st.markdown("""
+        - 📅 **근태/연차/출장 관리**
+        - 🚗 **시설/법인차량/숙소**
+        - 📜 **사내규정/취업규칙**
+        - 🎓 **교육 및 채용 안내**
+        - 📑 **증명서/비용/지출결의**
+        - 📦 **비품 구매/간식 신청**
+        - 💻 **어울지기/플로우 지원**
+        """)
+        
         st.markdown("---")
         if st.button("🚪 로그아웃", use_container_width=True):
             st.session_state.clear()
@@ -198,18 +221,17 @@ else:
 
     # --- 메인 채팅 화면 ---
     if "messages" not in st.session_state:
-        # 요청사항 반영: 이름과 직급을 크게 표시한 HTML 인삿말
+        # 인삿말 크기 및 구성 수정
         greeting_html = f"""
-        <div style="margin-bottom: 20px;">
+        <div style="margin-top: 20px;">
             <p class="greeting-title">{user['name']} {user['rank']}님, 반갑습니다! 👋</p>
-            <p class="greeting-subtitle">오늘은 복지, 규정, 시설 문의 등 무엇을 도와드릴까요?</p>
+            <p class="greeting-subtitle">오늘은 <b>복지, 규정, 시설 문의</b> 등 무엇을 도와드릴까요?</p>
         </div>
         """
         st.session_state["messages"] = [{"role": "assistant", "content": greeting_html, "is_html": True}]
     
     if "awaiting_confirmation" not in st.session_state: st.session_state["awaiting_confirmation"] = False
 
-    # 채팅 기록 표시
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             if msg.get("is_html"):
@@ -232,8 +254,8 @@ else:
 
         if not st.session_state["awaiting_confirmation"]:
             system_instruction = f"""
-            너는 1990년 창립된 건설 IT 선도 기업 KCIM의 HR/총무 AI 매니저야. [cite: 2026-01-02]
-            임직원인 {user['name']} {user['rank']}님에게 친절하고 정중하게 답변해줘.
+            너는 1990년 창립된 건설 IT 선도 기업 KCIM의 HR/총무 AI 매니저야.
+            임직원 {user['name']} {user['rank']}님에게 친절하고 정중하게 답변해줘.
 
             [사내 데이터]
             {ORG_CHART_DATA}
@@ -243,8 +265,8 @@ else:
 
             [원칙]
             1. 안내 번호: 02-772-5806.
-            2. 담당자 언급: 반드시 '성함 + 매니저/책임' 직급을 붙여서 호칭해.
-            3. 시설/차량/숙소: "HR팀 이경한 매니저에게 문의바랍니다." 안내 및 [ACTION] 태그 포함. [cite: 2026-01-02]
+            2. 담당자 언급: 성함 뒤에 반드시 '매니저' 또는 '책임' 직급을 붙여 호칭해.
+            3. 시설/차량/숙소: "HR팀 이경한 매니저에게 문의바랍니다." 안내 및 [ACTION] 태그 포함.
             4. 답변 끝에 반드시 [CATEGORY:분류명] 태그 포함.
             """
             
@@ -263,7 +285,6 @@ else:
             
             save_to_sheet(user['dept'], user['name'], user['rank'], category, summarize_text(prompt), summarize_text(clean_ans), final_status)
 
-            # 마지막 질문
             full_response = clean_ans + f"\n\n**{user['name']} {user['rank']}님, 더 궁금하신 점이 있으실까요?**"
             st.session_state.messages.append({"role": "assistant", "content": full_response})
             with st.chat_message("assistant"):
