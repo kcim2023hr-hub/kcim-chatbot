@@ -192,8 +192,9 @@ if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 
 # [로그인 화면]
 if not st.session_state["logged_in"]:
-    st.markdown("<h1 style='text-align: center; color: #333; margin-bottom: 30px;'>🏢 KCIM 챗봇</h1>", unsafe_allow_html=True)
+    # 타이틀을 카드형 박스 안으로 이동
     st.markdown("<div class='custom-card'>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #333; margin-bottom: 20px;'>🏢 KCIM 임직원 민원 챗봇</h2>", unsafe_allow_html=True)
     st.subheader("🔒 임직원 신원확인")
     with st.form("login_form"):
         input_name = st.text_input("성명", placeholder="이름을 입력하세요")
