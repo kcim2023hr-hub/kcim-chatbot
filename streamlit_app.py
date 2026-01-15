@@ -9,74 +9,81 @@ import os
 import re
 import PyPDF2
 
-# 1. 페이지 설정
-st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢")
+# 1. 페이지 설정: layout="centered"로 기본 중앙 정렬 설정
+st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢", layout="centered")
 
-# --- 고급 레이아웃 최적화를 위한 커스텀 CSS ---
+# --- 완전 중앙 정렬 및 카드 스타일 최적화를 위한 커스텀 CSS ---
 st.markdown("""
     <style>
-    /* 1. 전체 배경 및 중앙 정렬 */
+    /* 1. 배경 및 폰트 설정 */
     .stApp {
-        background-color: #f8f9fa;
+        background-color: #f4f7f9;
     }
+    
+    /* 2. 메인 콘텐츠 너비 제한 및 중앙 정렬 */
     .block-container {
-        max-width: 800px;
-        padding-top: 3rem;
-    }
-    
-    /* 2. 카드형 박스 스타일 (사용자 선호 스타일 유지 및 강화) */
-    .custom-card {
-        background-color: #ffffff;
-        padding: 25px;
-        border-radius: 15px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-        border: 1px solid #eee;
-        margin-bottom: 20px;
-    }
-    
-    /* 3. 사이드바 대시보드 스타일링 */
-    section[data-testid="stSidebar"] {
-        background-color: #ffffff !important;
-        border-right: 1px solid #e0e0e0;
-        padding: 20px 10px;
-    }
-    .sidebar-user-box {
-        background-color: #f1f8f1;
-        padding: 15px;
-        border-radius: 12px;
-        border-left: 5px solid #28a745;
-        margin-bottom: 20px;
-    }
-    .service-tag {
-        display: inline-block;
-        padding: 4px 10px;
-        background-color: #f0f2f6;
-        border-radius: 6px;
-        font-size: 13px;
-        color: #555;
-        margin-bottom: 8px;
-        width: 100%;
-        border: 1px solid #e0e0e0;
+        max-width: 750px !important;
+        padding-top: 4rem !important;
+        padding-bottom: 4rem !important;
     }
 
-    /* 4. 텍스트 강조 */
+    /* 3. 카드형 박스 스타일 (사용자 선호 스타일 고정) */
+    .custom-card {
+        background-color: #ffffff;
+        padding: 40px;
+        border-radius: 20px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+        border: 1px solid #e1e4e8;
+        margin-bottom: 25px;
+        text-align: center; /* 내부 텍스트 중앙 정렬 */
+    }
+
+    /* 4. 사이드바 디자인 (대시보드 형태) */
+    section[data-testid="stSidebar"] {
+        background-color: #ffffff !important;
+        border-right: 1px solid #dee2e6;
+    }
+    .sidebar-user-info {
+        background-color: #f8f9fa;
+        padding: 20px;
+        border-radius: 15px;
+        border: 1px solid #edf0f2;
+        margin-bottom: 20px;
+        text-align: center;
+    }
+    .category-box {
+        background-color: #ffffff;
+        padding: 10px 15px;
+        border-radius: 10px;
+        border: 1px solid #eee;
+        margin-bottom: 8px;
+        font-size: 14px;
+        transition: all 0.2s;
+    }
+    .category-box:hover {
+        background-color: #f1f3f5;
+        border-color: #d1d4d7;
+    }
+
+    /* 5. 텍스트 스타일링 */
     .greeting-title {
-        font-size: 30px !important;
+        font-size: 32px !important;
         font-weight: 800;
-        color: #1E1E1E;
-        line-height: 1.4;
+        color: #1a1c1e;
+        margin-bottom: 10px;
     }
     .greeting-subtitle {
-        font-size: 18px !important;
-        color: #666;
-        margin-top: 5px;
+        font-size: 19px !important;
+        color: #6c757d;
+        margin-bottom: 20px;
     }
     </style>
     """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------------
-# [1] 데이터 로드 로직 (기존 유지)
+# [1] 데이터 로드 로직
 # --------------------------------------------------------------------------
+
 @st.cache_data
 def load_employee_db():
     file_name = 'members.xlsx' 
@@ -132,13 +139,13 @@ def load_data():
 
 ORG_CHART_DATA, COMPANY_RULES, INTRANET_GUIDE = load_data()
 
-# 업무 분장표 데이터
+# 업무 분장표 데이터 [cite: 2026-01-02]
 WORK_DISTRIBUTION = """
 [경영관리본부 업무 분장표]
-- 이경한 매니저: 사옥/법인차량/현장 숙소 관리, 근태 관리, 행사 기획, 임직원 제도
+- 이경한 매니저: 사옥/법인차량 관리, 현장 숙소 관리, 근태 관리, 행사 기획/실행, 임직원 제도 수립 [cite: 2026-01-02]
 - 김병찬 매니저: 제도 공지, 위임전결, 취업규칙, 평가보상
 - 백다영 매니저: 교육, 채용, 입퇴사 안내
-- 김승민 책임: 품의서 관리, 세금계산서, 법인카드 비용처리, 숙소 비용
+- 김승민 책임: 품의서 관리, 세금계산서, 법인카드 비용처리, 숙소 비용 집행
 - 안하련 매니저: 급여 서류(원천징수), 품의 금액 송금
 - 손경숙 매니저: 비품 구매
 - 최관식 매니저: 내부 직원 정보 관리 (어울지기, 플로우)
@@ -179,70 +186,67 @@ def check_finish_intent(user_input):
     except: return "CONTINUE"
 
 # --------------------------------------------------------------------------
-# [3] UI 및 로직 실행
+# [3] UI 로직 실행
 # --------------------------------------------------------------------------
 if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 
 # [로그인 화면]
 if not st.session_state["logged_in"]:
-    # 중앙 정렬을 위한 여백 컬럼
-    _, center_col, _ = st.columns([0.1, 0.8, 0.1])
-    with center_col:
-        st.markdown("<h1 style='text-align: center; color: #333;'>🏢 KCIM 챗봇</h1>", unsafe_allow_html=True)
-        # 마음에 들어하신 카드형 박스 레이아웃
-        with st.container():
-            st.markdown("<div class='custom-card'>", unsafe_allow_html=True)
-            st.subheader("🔒 임직원 신원확인")
-            with st.form("login_form"):
-                input_name = st.text_input("성명", placeholder="이름을 입력하세요")
-                input_pw = st.text_input("비밀번호 (휴대폰 뒷 4자리)", type="password", placeholder="****")
-                st.info("💡 민원 데이터 관리를 위해 해당 임직원 신원 확인을 요청드립니다.")
-                if st.form_submit_button("접속하기", use_container_width=True):
-                    if input_name in EMPLOYEE_DB and EMPLOYEE_DB[input_name]["pw"] == input_pw:
-                        st.session_state["logged_in"] = True
-                        st.session_state["user_info"] = {"dept": EMPLOYEE_DB[input_name]["dept"], "name": input_name, "rank": EMPLOYEE_DB[input_name]["rank"]}
-                        st.rerun()
-                    else: st.error("정보가 일치하지 않습니다.")
-            st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #333; margin-bottom: 30px;'>🏢 KCIM 챗봇</h1>", unsafe_allow_html=True)
+    
+    # 카드형 박스 중앙 배치
+    st.markdown("<div class='custom-card'>", unsafe_allow_html=True)
+    st.subheader("🔒 임직원 신원확인")
+    with st.form("login_form"):
+        input_name = st.text_input("성명", placeholder="이름을 입력하세요")
+        input_pw = st.text_input("비밀번호 (휴대폰 뒷 4자리)", type="password", placeholder="****")
+        st.info("💡 민원 데이터 관리를 위해 해당 임직원 신원 확인을 요청드립니다.")
+        if st.form_submit_button("접속하기", use_container_width=True):
+            if input_name in EMPLOYEE_DB and EMPLOYEE_DB[input_name]["pw"] == input_pw:
+                st.session_state["logged_in"] = True
+                st.session_state["user_info"] = {"dept": EMPLOYEE_DB[input_name]["dept"], "name": input_name, "rank": EMPLOYEE_DB[input_name]["rank"]}
+                st.rerun()
+            else: st.error("정보가 일치하지 않습니다. 다시 확인해 주세요.")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # [챗봇 메인 화면]
 else:
     user = st.session_state["user_info"]
     
-    # --- 사이드바 레이아웃 최적화 ---
+    # --- 좌측 사이드바 (정보 허브) ---
     with st.sidebar:
-        # 로고 자리 (이미지 파일 준비 시 경로 입력)
         st.markdown("<h2 style='text-align: center; color: #E74C3C;'>🏢 KCIM</h2>", unsafe_allow_html=True)
         st.markdown("---")
         
-        # 접속 정보 섹션 (박스형)
+        # 사용자 정보 카드
         st.markdown(f"""
-        <div class='sidebar-user-box'>
-            <small style='color: #666;'>현재 접속자</small><br>
-            <b style='font-size: 1.1rem;'>{user['name']} {user['rank']}님</b><br>
-            <span style='font-size: 0.9rem; color: #28a745;'>{user['dept']}</span>
+        <div class='sidebar-user-info'>
+            <small style='color: #6c757d;'>인증된 사용자</small><br>
+            <b style='font-size: 20px;'>{user['name']} {user['rank']}</b><br>
+            <span style='color: #28a745; font-weight: 600;'>{user['dept']}</span>
         </div>
         """, unsafe_allow_html=True)
         
-        # 민원 카테고리 (이미지 image_871e6e.png 기반)
+        # 카테고리 안내
         st.subheader("🚀 민원 카테고리")
-        categories = [
-            ("🛠️ 시설/수리", "유지보수, 장비교체"),
+        cats = [
+            ("🛠️ 시설/수리", "유지보수 및 장비교체"),
             ("👤 입퇴사/이동", "인사, 채용, 증명서"),
-            ("📋 프로세스/규정", "사내시스템, 보안"),
-            ("🎁 복지/휴가", "경조사, 교육지원"),
-            ("📢 불편사항", "근무환경 컴플레인"),
+            ("📋 프로세스/규정", "사내시스템, 규정안내"),
+            ("🎁 복지/휴가", "경조사 및 교육지원"),
+            ("📢 불편사항", "근무환경 개선요청"),
             ("💬 일반/기타", "단순질의 및 협조")
         ]
-        for cat, desc in categories:
-            st.markdown(f"<div class='service-tag'><b>{cat}</b><br><small>{desc}</small></div>", unsafe_allow_html=True)
+        for title, desc in cats:
+            st.markdown(f"<div class='category-box'><b>{title}</b><br><small style='color: #888;'>{desc}</small></div>", unsafe_allow_html=True)
         
         st.markdown("---")
         if st.button("🚪 안전하게 로그아웃", use_container_width=True):
             st.session_state.clear()
             st.rerun()
 
-    # --- 메인 채팅 화면 (카드형 인삿말 유지) ---
+    # --- 메인 채팅창 중앙 배치 ---
+    # 첫 인삿말 카드
     if "messages" not in st.session_state:
         greeting_html = f"""
         <div class='custom-card'>
@@ -254,36 +258,40 @@ else:
     
     if "awaiting_confirmation" not in st.session_state: st.session_state["awaiting_confirmation"] = False
 
+    # 대화 기록 표시
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             if msg.get("is_html"): st.markdown(msg["content"], unsafe_allow_html=True)
             else: st.write(msg["content"])
 
+    # 채팅 입력창
     if prompt := st.chat_input("문의 내용을 입력하세요"):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.write(prompt)
 
         if st.session_state["awaiting_confirmation"]:
             if check_finish_intent(prompt) == "FINISH":
-                st.chat_message("assistant").write(f"도움이 되어 기쁩니다. {user['name']}님, 좋은 하루 되세요! 😊")
+                st.chat_message("assistant").write(f"도움이 되어 기쁩니다. {user['name']}님, 오늘 하루도 응원합니다! 😊")
                 st.session_state["awaiting_confirmation"] = False
                 st.stop()
             else: st.session_state["awaiting_confirmation"] = False
 
         if not st.session_state["awaiting_confirmation"]:
-            system_instruction = f""" 너는 KCIM의 HR 매니저야. {user['name']}님에게 답변해. [사내 데이터] {ORG_CHART_DATA} {COMPANY_RULES} {INTRANET_GUIDE} {WORK_DISTRIBUTION} [원칙] 1. 번호: 02-772-5806. 2. 호칭: 성함+매니저/책임. 3. 시설/차량/숙소: 이경한 매니저 안내 및 [ACTION] 태그. 4. 태그: [CATEGORY:분류명] (시설/수리, 입퇴사/이동, 프로세스/규정, 복지/휴가, 불편사항, 일반/기타 중 선택) """
+            # KCIM HR 매니저 페르소나 적용 [cite: 2026-01-02]
+            system_instruction = f""" 너는 1990년 창립된 KCIM의 전문 HR 매니저야. {user['name']}님에게 정중하고 정확하게 답변해줘. [사내 데이터] {ORG_CHART_DATA} {COMPANY_RULES} {INTRANET_GUIDE} {WORK_DISTRIBUTION} [원칙] 1. 번호: 02-772-5806. 2. 호칭: 성함+매니저/책임. 3. 시설/차량/숙소: 이경한 매니저 안내 및 [ACTION] 태그. 4. 태그: [CATEGORY:분류명] (시설/수리, 입퇴사/이동, 프로세스/규정, 복지/휴가, 불편사항, 일반/기타 중 선택) """
             
             try:
                 completion = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "system", "content": system_instruction}, {"role": "user", "content": prompt}])
                 raw_response = completion.choices[0].message.content
-            except: raw_response = "오류가 발생했습니다."
+            except: raw_response = "시스템 통신 중 오류가 발생했습니다."
 
             category = re.search(r'\[CATEGORY:(.*?)\]', raw_response).group(1) if "[CATEGORY:" in raw_response else "기타"
             final_status = "담당자확인필요" if "[ACTION]" in raw_response else "처리완료"
             clean_ans = raw_response.replace("[ACTION]", "").replace(f"[CATEGORY:{category}]", "").strip()
             
             save_to_sheet(user['dept'], user['name'], user['rank'], category, summarize_text(prompt), summarize_text(clean_ans), final_status)
-            full_response = clean_ans + f"\n\n**{user['name']}님, 더 궁금하신 점이 있으실까요?**"
+            
+            full_response = clean_ans + f"\n\n**{user['name']}님, 다른 문의 사항이 더 있으실까요?**"
             st.session_state.messages.append({"role": "assistant", "content": full_response})
             with st.chat_message("assistant"): st.write(full_response)
             st.session_state["awaiting_confirmation"] = True
