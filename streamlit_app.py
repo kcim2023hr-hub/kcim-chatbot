@@ -14,13 +14,13 @@ st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢")
 st.title("🤖 KCIM 사내 민원/문의 챗봇")
 
 # --------------------------------------------------------------------------
-# [1] 데이터 로드 (02-772-5806 반영 및 성함 언급 금지 정책)
+# [1] 데이터 로드 (02-772-5806 및 성함 언급 금지 정책 반영)
 # --------------------------------------------------------------------------
 @st.cache_data
 def load_employee_db():
     file_name = 'members.xlsx' 
     db = {}
-    # 요청하신 상담 안내 번호 업데이트 완료
+    # 요청하신 상담 안내 번호 업데이트 완료 (02-772-5806)
     db["관리자"] = {"pw": "1323", "dept": "HR팀", "rank": "매니저", "tel": "02-772-5806"}
     if os.path.exists(file_name):
         try:
@@ -41,7 +41,7 @@ def load_employee_db():
 EMPLOYEE_DB = load_employee_db()
 
 # --------------------------------------------------------------------------
-# [2] 외부 연동 (Flow 관리자 API 표준 주소 적용)
+# [2] 외부 연동 (Flow 관리자 API 표준 주소 적용으로 404 정면 돌파)
 # --------------------------------------------------------------------------
 try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
@@ -54,17 +54,17 @@ except Exception as e:
 def send_flow_alert(category, question, name, dept):
     if not flow_secrets: return False, "Secrets 설정 누락"
     api_key = flow_secrets.get("api_key")
-    p_id = "2786111" # 확인된 ID
+    p_id = "2786111" # image_6cbc4f에서 확인된 ID
     
     headers = {"Content-Type": "application/json", "x-flow-api-key": api_key}
     content = f"[🚨 챗봇 민원 알림]\n- 요청자: {name} ({dept})\n- 분류: {category}\n- 내용: {question}"
 
     # ★ 404 해결의 핵심: 등록하신 동작(OperationID)에 맞는 '표준 주소' 사용
-    # 주소 뒤에 숫자를 붙이지 않는 것이 플로우 관리자 API의 핵심입니다.
+    # 주소 뒤에 ID를 붙이지 않는 것이 플로우 관리자 API의 핵심 규격입니다.
     attempts = [
-        # 1. 게시글 작성 (OperationID: createPost) - 표준 경로
+        # 1. 게시글 작성 (OperationID: createPost)
         ("https://api.flow.team/v1/posts", {"project_code": p_id, "title": "🤖 챗봇 민원 접수", "body": content}),
-        # 2. 채팅 메시지 전송 (OperationID: createChatMessage) - 표준 경로
+        # 2. 채팅 메시지 전송 (OperationID: createChatMessage)
         ("https://api.flow.team/v1/messages", {"room_code": p_id, "content": content})
     ]
 
@@ -81,7 +81,7 @@ def send_flow_alert(category, question, name, dept):
     return False, last_error
 
 # --------------------------------------------------------------------------
-# [3] UI 및 로직
+# [3] UI 및 로직 (성함 언급 금지 지침 반영)
 # --------------------------------------------------------------------------
 if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 
@@ -106,14 +106,12 @@ else:
             st.divider()
             st.markdown("### 🛠️ 관리자 도구")
             
-            # [진단 버튼] 현재 API 키로 접근 가능한 프로젝트 목록 확인
-            if st.button("🔍 API 키 진단 (Project List)"):
+            # 진단 도구 수정 (getProjects 권한이 없을 경우를 대비해 예외처리)
+            if st.button("🔍 API 키 진단"):
                 headers = {"x-flow-api-key": flow_secrets.get("api_key")}
                 res = requests.get("https://api.flow.team/v1/projects", headers=headers)
-                if res.status_code == 200:
-                    st.success("API 연결 정상! (200 OK)")
-                    st.json(res.json())
-                else: st.error(f"진단 실패: {res.status_code}")
+                if res.status_code == 200: st.json(res.json())
+                else: st.error(f"진단 실패({res.status_code}): Rule-Set에 getProjects 권한을 추가해보세요.")
 
             if st.button("🔔 Flow 연동 테스트"):
                 with st.status("플로우 API 전송 시도 중...") as status:
@@ -127,7 +125,7 @@ else:
 
     st.markdown(f"### 👋 안녕하세요, {user['name']}님!")
     if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "assistant", "content": "반갑습니다! 👋 **복지, 규정, 불편사항** 등 궁금한 점을 물어보세요."}]
+        st.session_state.messages = [{"role": "assistant", "content": "반갑습니다! 👋 무엇을 도와드릴까요?"}]
 
     for msg in st.session_state.messages: st.chat_message(msg["role"]).write(msg["content"])
 
@@ -135,7 +133,7 @@ else:
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.chat_message("user").write(prompt)
 
-        # 지침: '이경한 매니저' 언급 금지 및 상담 번호 02-772-5806 반영
+        # 지침: 매니저님 성함 언급 금지 및 상담 번호 반영
         sys_msg = f"""너는 KCIM의 HR AI 매니저야.
         1. 시설/수리 관련 질문에는 반드시 [ACTION] 태그를 붙여.
         2. 답변 시 절대 '이경한 매니저'라는 성함을 직접 언급하지 마. 
