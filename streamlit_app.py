@@ -14,10 +14,10 @@ except Exception as e:
     st.error(f"🔑 Secrets 설정 오류: {e}")
     st.stop()
 
-# [2] 정밀 진단 로직: 서버 응답 원본 무편집 출력
+# [2] 정밀 진단 로직: 서버 응답을 가공 없이 출력하여 진짜 'project_code'를 찾습니다.
 def run_deep_discovery():
     headers = {"x-flow-api-key": FLOW_API_KEY, "Content-Type": "application/json"}
-    st.subheader("📡 1단계: 플로우 서버 응답 원본 확인")
+    st.subheader("📡 1단계: 플로우 서버 응답 정밀 분석")
     
     # 200 OK를 받았던 주소를 다시 호출합니다.
     res = requests.get("https://api.flow.team/v1/projects", headers=headers)
@@ -30,22 +30,22 @@ def run_deep_discovery():
         st.write("▼ 아래 JSON 데이터에서 '챗봇 테스트' 프로젝트의 정보를 찾아보세요.")
         st.json(data)
         
-        # 데이터가 많을 경우를 대비해 프로젝트 이름만 추출 시도
+        # 데이터가 많을 경우를 대비해 프로젝트 목록만 추출 시도
         try:
             # image_6e994b 구조를 역추적하여 리스트 접근
             projects_data = data.get('response', {}).get('data', {}).get('projects', {}).get('projects', [])
             if projects_data:
-                st.subheader("📋 프로젝트 식별자 목록")
+                st.subheader("📋 발견된 프로젝트 식별자 목록")
                 display_list = []
                 for p in projects_data:
                     display_list.append({
                         "프로젝트명": p.get('name'),
                         "진짜 project_code (사용할 값)": p.get('project_code'),
-                        "내부 ID": p.get('id')
+                        "ID": p.get('id')
                     })
                 st.table(display_list)
         except Exception as e:
-            st.error(f"표 가공 중 오류 발생(데이터 확인 권장): {e}")
+            st.error(f"표 가공 중 오류 발생(위 JSON 원본을 확인해 주세요): {e}")
     else:
         st.error(f"서버 연결 실패: {res.status_code}")
 
@@ -56,7 +56,7 @@ if st.button("🚀 서버 데이터 정밀 조사 시작"):
 
 st.divider()
 
-# [4] 챗봇 답변 (지침 반영 완료)
+# [4] 챗봇 답변 (지침 반영 완료: 성함 언급 금지 및 상담 번호 02-772-5806)
 if prompt := st.chat_input("테스트 질문을 입력하세요"):
     sys_msg = """너는 KCIM HR AI야. 
     1. 상담 번호는 02-772-5806으로 안내해.
