@@ -12,7 +12,7 @@ import PyPDF2
 # 1. 페이지 설정: 중앙 정렬 레이아웃 고정
 st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢", layout="centered")
 
-# --- UI 고정 및 카테고리 버튼 가독성 극대화 커스텀 CSS ---
+# --- UI 고정 및 가독성 극대화 커스텀 CSS ---
 st.markdown("""
     <style>
     /* 전체 배경 및 레이아웃 */
@@ -29,7 +29,7 @@ st.markdown("""
         text-align: center;
     }
 
-    /* 파란색 안내 박스(st.info) 가독성 최적화 */
+    /* 파란색 안내 박스 가독성 최적화 */
     div[data-testid="stNotification"] {
         font-size: 17px !important;
         font-weight: 500 !important;
@@ -40,17 +40,7 @@ st.markdown("""
         padding: 20px !important;
     }
 
-    /* 입력란 라벨 폰트 크기 확대 */
-    .stTextInput label {
-        font-size: 18px !important;
-        font-weight: 600 !important;
-        color: #333 !important;
-        margin-bottom: 10px !important;
-        display: block;
-        text-align: left !important;
-    }
-
-    /* [사이드바] 버튼 스타일링 (카드 박스 형태 고정) */
+    /* 사이드바 스타일링 및 개별 박스 처리 */
     section[data-testid="stSidebar"] { background-color: #ffffff !important; border-right: 1px solid #dee2e6; }
     
     .sidebar-user-box {
@@ -62,7 +52,7 @@ st.markdown("""
         text-align: center;
     }
 
-    /* [중요] 카테고리 버튼 내 제목과 내용의 시각적 구분 (CSS Trick) */
+    /* [핵심] 카테고리 버튼 내 제목과 내용의 명확한 시각적 구분 */
     div[data-testid="stSidebar"] .stButton > button {
         background-color: #ffffff !important;
         border: 1px solid #e9ecef !important;
@@ -74,17 +64,17 @@ st.markdown("""
         transition: all 0.2s ease !important;
     }
 
-    /* 버튼 텍스트 전체 스타일 (기본적으로 내용 스타일로 설정) */
+    /* 버튼 텍스트 전체 스타일 (내용/설명 부분) */
     div[data-testid="stSidebar"] .stButton > button div[data-testid="stMarkdownContainer"] p {
         font-size: 13px !important;
         color: #666 !important;
         line-height: 1.5 !important;
-        white-space: pre-line !important; /* 줄바꿈 허용 */
+        white-space: pre-line !important; 
         text-align: left !important;
         margin: 0 !important;
     }
 
-    /* 버튼 첫 번째 줄(제목) 스타일 강제 변경 */
+    /* 버튼 첫 번째 줄 (민원구분/제목) 스타일 강제 변경 */
     div[data-testid="stSidebar"] .stButton > button div[data-testid="stMarkdownContainer"] p::first-line {
         font-size: 16px !important;
         font-weight: 700 !important;
@@ -104,7 +94,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------------
-# [1] 데이터 로드 로직 (1990년 창립 KCIM 정보 반영)
+# [1] 데이터 로드 로직 (Saved Info 반영)
 # --------------------------------------------------------------------------
 
 @st.cache_data
@@ -124,9 +114,10 @@ def load_employee_db():
 
 EMPLOYEE_DB = load_employee_db()
 
-# 업무 분장 데이터 (HR팀 매니저 이경한 업무 중심)
+# 업무 분장 데이터 (이경한 매니저: 시설/차량/숙소/근태 관리)
 WORK_DISTRIBUTION = """
-- 이경한 매니저: 사옥/법인차량 관리, 현장 숙소 관리, 근태 관리, 행사 기획/실행, 임직원 제도 수립
+- 이경한 매니저: 사옥/법인차량 관리, 현장 숙소 관리, 근태/연차/휴가 관리, 행사 기획/실행, 제증명 발급, 지출결의(출장/숙소), 간식구매 등
+- 기타 부서원: 제도 공지, 채용, 품의서 관리 등
 """
 
 # --------------------------------------------------------------------------
@@ -176,28 +167,27 @@ else:
         
         st.subheader("🚀 민원 카테고리")
         
-        # 카테고리 리스트 (이미지 image_881631.png 상세 내용 반영)
+        # 상세 카테고리 (민원구분 및 내용 분리 반영)
         cats = [
             ("🛠️ 시설/수리", "사옥·차량 유지보수, 장비 교체 및 수리 요청"),
-            ("👤 입퇴사/이동", "제증명 발급, 인사 발령, 근무 확인 및 채용"),
-            ("📋 프로세스/규정", "사내 규정 안내, 시스템 이슈 및 보안 문의"),
+            ("👤 입퇴사/이동", "재직증명서 발급, 인사 발령, 근무 확인 및 채용"),
+            ("📋 프로세스/규정", "사내 규정 안내, 시스템 사용 이슈 및 보안 문의"),
             ("🎁 복지/휴가", "경조사, 지원금, 교육 지원 및 동호회 활동"),
             ("📢 불편사항", "근무 환경 내 불편 및 피해 사항 컴플레인"),
             ("💬 일반/기타", "단순 질의, 일반 업무 협조 및 기타 문의")
         ]
         
         for title, desc in cats:
-            # 버튼 클릭 시 해당 카테고리로 대화 시작
-            # \n을 사용하여 제목과 설명을 구분하며, CSS가 이를 감지해 스타일을 다르게 입힙니다.
+            # 제목과 내용 사이에 줄바꿈(\n)을 넣어 스타일을 구분합니다.
             if st.button(f"{title}\n{desc}", key=title):
-                st.session_state.messages.append({"role": "user", "content": f"[{title}] 카테고리에 대해 문의하고 싶습니다."})
+                st.session_state.messages.append({"role": "user", "content": f"[{title}] 주제에 대해 문의하고 싶습니다."})
         
         st.markdown("---")
         if st.button("🚪 안전하게 로그아웃", use_container_width=True):
             st.session_state.clear()
             st.rerun()
 
-    # 메인 인삿말 (최초 접속 시에만 표시되는 플랫 디자인)
+    # 메인 인삿말 (최초 접속 시 표시)
     if not st.session_state.messages:
         greeting_html = f"""
         <div class='greeting-container'>
@@ -217,9 +207,9 @@ else:
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.rerun()
 
-    # 답변 생성 로직 (1990년 창립 KCIM 전문 HR 매니저 페르소나)
+    # 자동 답변 로직 (1990년 창립 KCIM 전문 HR 매니저 페르소나)
     if st.session_state.messages and st.session_state.messages[-1]["role"] == "user":
-        # Autodesk Gold 파트너사 정보 및 담당자 정보 반영
+        # Autodesk Gold 파트너사 정체성 반영
         system_instruction = f"너는 1990년 창립된 KCIM의 전문 HR 매니저야. {user['name']}님에게 정중히 답변해줘. 시설/차량/숙소는 이경한 매니저 안내(02-772-5806)."
         try:
             client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
