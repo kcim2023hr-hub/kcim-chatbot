@@ -212,7 +212,7 @@ else:
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.write(prompt)
         
-        sys_msg = f"""너는 1990년 창립된 KCIM의 HR팀 매니저야. {user['name']}님께 정중히 답변해줘.
+        sys_msg = f"""너는 1990년 창립된 KCIM의 HR팀 팀장입니다. {user['name']}님께 정중하고 정확하게 답변해줘.
         아래 최신 규정 파일 목록 중 관련 있는 파일명을 정확히 언급하며 답변해줘:
         {COMPANY_DOCUMENTS_INFO}
         
