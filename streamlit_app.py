@@ -18,27 +18,26 @@ except Exception as e:
     st.stop()
 
 # --------------------------------------------------------------------------
-# [필수 수정] 아래 따옴표("") 안에 엑셀 파일 주소(URL)를 붙여넣으세요!
-# 예시: sheet_url = "https://docs.google.com/spreadsheets/d/1aBcD..."
+# [수정 포인트] 따옴표("") 안에 엑셀 주소를 넣어야 합니다!
+# 실수하지 않도록 제가 따옴표를 미리 적어두었습니다.
 # --------------------------------------------------------------------------
-sheet_url = https://docs.google.com/spreadsheets/d/1jckiUzmefqE_PiaSLVHF2kj2vFOIItc3K86_1HPWr_4/edit?gid=1434430603#gid=1434430603 
+sheet_url = "https://docs.google.com/spreadsheets/d/1jckiUzmefqE_PiaSLVHF2kj2vFOIItc3K86_1HPWr_4/edit?gid=1434430603#gid=1434430603" 
 
-# 3. 구글 시트 연결 함수 (주소로 찾기)
+# 3. 구글 시트 연결 함수
 def save_to_sheet(question, answer):
     try:
         scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
         creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(google_secrets), scope)
         gs_client = gspread.authorize(creds)
         
-        # [수정됨] 이름 대신 URL로 정확하게 찾습니다.
+        # URL로 시트 찾기
         sheet = gs_client.open_by_url(sheet_url).sheet1
         
-        # 날짜, 질문, 답변 저장
+        # 기록
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         sheet.append_row([now, question, answer])
         
     except Exception as e:
-        # 에러가 나면 화면에 빨간 글씨로 이유를 보여줍니다.
         st.error(f"구글 시트 저장 실패: {e}")
 
 # 4. 챗봇 로직
@@ -56,9 +55,8 @@ if prompt := st.chat_input("질문을 입력하세요"):
 
     response = ""
     try:
-        system_instruction = """
-        너는 KICM의 HR 매니저야. 모르는 내용은 '담당자 확인 후 처리해 드리겠습니다'라고 답하고 끝에 [민원접수]라고 붙여.
-        """
+        system_instruction = "너는 KICM의 HR 매니저야. 모르는 내용은 '담당자 확인 후 처리해 드리겠습니다'라고 답하고 끝에 [민원접수]라고 붙여."
+        
         completion = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
