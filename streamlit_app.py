@@ -208,7 +208,7 @@ else:
     st.markdown(f"### 👋 안녕하세요, {user['name']} {user['rank']}님!")
 
     if "messages" not in st.session_state:
-        st.session_state["messages"] = [{"role": "assistant", "content": "반갑습니다! 👋 **복지, 규정, 시설 이용** 등 궁금한 점이 있으시면 언제든 물어보세요."}]
+        st.session_state["messages"] = [{"role": "assistant", "content": "반갑습니다! 👋 **복지, 규정, 시설 이용, 불편사항** 등 궁금한 점이 있으시면 언제든 물어보세요."}]
     
     if "awaiting_confirmation" not in st.session_state:
         st.session_state["awaiting_confirmation"] = False
