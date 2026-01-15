@@ -2,78 +2,31 @@ import streamlit as st
 from openai import OpenAI
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import pandas as pd
 import time
 import os
 import re
 import PyPDF2
 
-# 1. 페이지 설정: 중앙 정렬 레이아웃 고정
+# 1. 페이지 설정: 레이아웃 고정
 st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢", layout="centered")
 
-# --- UI 고정 및 가독성 최적화 커스텀 CSS ---
+# --- UI 고정 커스텀 CSS ---
 st.markdown("""
     <style>
     .stApp { background-color: #f4f7f9; }
     .block-container { max-width: 800px !important; padding-top: 5rem !important; }
-
-    /* [로그인 화면] 폼 카드 스타일링 */
-    div[data-testid="stForm"] {
-        background-color: #ffffff !important;
-        padding: 50px !important;
-        border-radius: 20px !important;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.05) !important;
-        border: 1px solid #e1e4e8 !important;
-        text-align: center;
-    }
-
-    /* 파란색 안내 박스(st.info) 가독성 최적화 */
-    div[data-testid="stNotification"] {
-        font-size: 17px !important;
-        font-weight: 500 !important;
-        line-height: 1.6 !important;
-        background-color: #f0f7ff !important;
-        border-radius: 12px !important;
-        color: #0056b3 !important;
-        padding: 20px !important;
-    }
-
-    /* [사이드바] 버튼 및 카드 스타일링 */
+    div[data-testid="stForm"] { background-color: #ffffff; padding: 50px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); border: 1px solid #e1e4e8; text-align: center; }
+    div[data-testid="stNotification"] { font-size: 17px; line-height: 1.6; background-color: #f0f7ff; border-radius: 12px; color: #0056b3; padding: 20px; }
     section[data-testid="stSidebar"] { background-color: #ffffff !important; border-right: 1px solid #dee2e6; }
-    .sidebar-user-box {
-        background-color: #f8f9fa;
-        padding: 20px;
-        border-radius: 15px;
-        border: 1px solid #edf0f2;
-        margin-bottom: 20px;
-        text-align: center;
-    }
-    div[data-testid="stSidebar"] .stButton > button {
-        background-color: #ffffff !important;
-        border: 1px solid #e9ecef !important;
-        padding: 18px 15px !important;
-        border-radius: 15px !important;
-        width: 100% !important;
-        margin-bottom: -5px !important;
-        transition: all 0.2s ease !important;
-    }
-    div[data-testid="stSidebar"] .stButton > button div[data-testid="stMarkdownContainer"] p {
-        font-size: 13px !important; color: #666 !important; line-height: 1.5 !important;
-        white-space: pre-line !important; text-align: left !important; margin: 0 !important;
-    }
-    div[data-testid="stSidebar"] .stButton > button div[data-testid="stMarkdownContainer"] p::first-line {
-        font-size: 16px !important; font-weight: 700 !important; color: #1a1c1e !important;
-    }
-
-    /* 상담 중일 때 버튼 비활성화 스타일 */
-    div[data-testid="stSidebar"] .stButton > button:disabled {
-        background-color: #f0f0f0 !important;
-        color: #aaa !important;
-        cursor: not-allowed !important;
-    }
-
-    /* [메인화면] 플랫 디자인 인사말 */
+    .sidebar-user-box { background-color: #f8f9fa; padding: 20px; border-radius: 15px; border: 1px solid #edf0f2; margin-bottom: 20px; text-align: center; }
+    
+    /* 카테고리 버튼 가독성 스타일 */
+    div[data-testid="stSidebar"] .stButton > button { background-color: #ffffff !important; border: 1px solid #e9ecef !important; padding: 18px 15px !important; border-radius: 15px !important; width: 100% !important; margin-bottom: -5px !important; }
+    div[data-testid="stSidebar"] .stButton > button div[data-testid="stMarkdownContainer"] p { font-size: 13px; color: #666; line-height: 1.5; white-space: pre-line; text-align: left; margin: 0; }
+    div[data-testid="stSidebar"] .stButton > button div[data-testid="stMarkdownContainer"] p::first-line { font-size: 16px; font-weight: 700; color: #1a1c1e; }
+    
     .greeting-container { text-align: center; margin-bottom: 45px; padding: 25px 0; }
     .greeting-title { font-size: 38px !important; font-weight: 800; color: #1a1c1e; margin-bottom: 15px; }
     .greeting-subtitle { font-size: 23px !important; color: #555; }
@@ -81,7 +34,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------------
-# [1] 데이터 로드 (KCIM 1990년 창립 및 HR 매니저 직무 반영)
+# [1] 데이터 로드 (KCIM 1990년 창립 정보 반영)
 # --------------------------------------------------------------------------
 @st.cache_data
 def load_employee_db():
@@ -100,69 +53,65 @@ def load_employee_db():
 
 EMPLOYEE_DB = load_employee_db()
 
-# 카테고리별 맞춤 인사말
-CATEGORY_GREETINGS = {
-    "🛠️ 시설/수리": "시설 및 장비 수리가 필요하신가요? 어떤 부분에 도움이 필요하신지 말씀해 주세요. 🛠️",
-    "👤 입퇴사/이동": "증명서 발급이나 인사 관련 문의가 있으시군요. 어떤 서류나 절차가 궁금하신가요? 👤",
-    "📋 프로세스/규정": "규정이나 시스템 사용법에 대해 안내해 드릴게요. 무엇이 궁금하신가요? 📋",
-    "🎁 복지/휴가": "복지나 휴가 제도는 임직원의 소중한 권리입니다. 어떤 혜택에 대해 알고 싶으신가요? 🎁",
-    "📢 불편사항": "근무 환경 내 불편한 점이 있으셨군요. 말씀해 주시면 신속히 확인하여 개선하도록 노력하겠습니다. 📢",
-    "💬 일반/기타": "기타 궁금하신 사항이나 업무 협조가 필요한 부분이 있다면 편하게 말씀해 주세요. 💬"
-}
+# --------------------------------------------------------------------------
+# [2] 유틸리티 기능 (시간 보정 및 요약)
+# --------------------------------------------------------------------------
+def get_kst_now():
+    """서버 시간과 관계없이 한국 표준시(KST) 반환"""
+    kst = timezone(timedelta(hours=9))
+    return datetime.now(kst).strftime("%Y-%m-%d %H:%M:%S")
 
-# --------------------------------------------------------------------------
-# [2] 구글 시트 저장 및 상태 관리
-# --------------------------------------------------------------------------
+def summarize_text(text):
+    """시트 기록을 위한 1문장 요약"""
+    try:
+        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+        res = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "system", "content": "1문장으로 핵심만 요약해."}, {"role": "user", "content": text}],
+            temperature=0
+        )
+        return res.choices[0].message.content.strip()
+    except:
+        return text[:50] + "..."
+
 def save_to_sheet(dept, name, rank, category, question, answer, status):
-    """대화 내용을 구글 스프레드시트에 기록"""
+    """구글 시트 기록"""
     sheet_url = "https://docs.google.com/spreadsheets/d/1jckiUzmefqE_PiaSLVHF2kj2vFOIItc3K86_1HPWr_4/edit#gid=1434430603"
     try:
-        google_secrets = st.secrets["google_sheets"]
-        scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(google_secrets), scope)
-        gs_client = gspread.authorize(creds)
-        sheet = gs_client.open_by_url(sheet_url).worksheet("응답시트")
-        # 열 순서: 날짜, 부서, 성명, 직급, 카테고리, 질문내용, 답변내용, 처리결과
-        sheet.append_row([
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
-            dept, name, rank, category, question, answer, status
-        ])
-    except Exception as e:
-        st.error(f"시트 저장 실패: {e}")
-
-if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
-if "messages" not in st.session_state: st.session_state["messages"] = []
-if "inquiry_active" not in st.session_state: st.session_state["inquiry_active"] = False
-
-def reset_chat():
-    st.session_state["inquiry_active"] = False
-    st.session_state["messages"] = []
-    st.rerun()
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(
+            dict(st.secrets["google_sheets"]), 
+            ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+        )
+        sheet = gspread.authorize(creds).open_by_url(sheet_url).worksheet("응답시트")
+        # H열(status)에 '담당자 확인 필요' 기입 로직 포함
+        sheet.append_row([get_kst_now(), dept, name, rank, category, question, answer, status])
+    except:
+        pass
 
 # --------------------------------------------------------------------------
 # [3] UI 및 대화 로직
 # --------------------------------------------------------------------------
+if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
+if "messages" not in st.session_state: st.session_state["messages"] = []
+if "inquiry_active" not in st.session_state: st.session_state["inquiry_active"] = False
 
 if not st.session_state["logged_in"]:
     with st.form("login_form"):
         st.markdown("<h2 style='text-align: center; color: #1a1c1e;'>🏢 KCIM 임직원 민원 챗봇</h2>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center; font-weight: bold; color: #555;'>🔒 임직원 신원확인</p>", unsafe_allow_html=True)
-        input_name = st.text_input("성명", placeholder="성함을 입력하세요")
+        input_name = st.text_input("성명", placeholder="이름 입력")
         input_pw = st.text_input("비밀번호 (휴대폰 뒷 4자리)", type="password", placeholder="****")
         st.info("💡 민원 데이터 관리를 위해 해당 임직원 신원 확인을 요청드립니다.")
         if st.form_submit_button("접속하기", use_container_width=True):
             if input_name in EMPLOYEE_DB and EMPLOYEE_DB[input_name]["pw"] == input_pw:
                 st.session_state["logged_in"] = True
-                st.session_state["user_info"] = EMPLOYEE_DB[input_name]
-                st.session_state["user_info"]["name"] = input_name
+                st.session_state["user_info"] = {**EMPLOYEE_DB[input_name], "name": input_name}
                 st.rerun()
-            else: st.error("정보가 일치하지 않습니다.")
 
 else:
     user = st.session_state["user_info"]
     with st.sidebar:
         st.markdown("<h2 style='text-align: center;'>🏢 KCIM</h2>", unsafe_allow_html=True)
-        st.markdown(f"""<div class='sidebar-user-box'><small>인증된 사용자</small><br><b style='font-size: 20px;'>{user['name']} {user['rank']}</b><br><span style='color: #28a745; font-weight: 600;'>{user['dept']}</span></div>""", unsafe_allow_html=True)
+        st.markdown(f"<div class='sidebar-user-box'><small>인증된 사용자</small><br><b style='font-size: 20px;'>{user['name']} {user['rank']}</b><br><span style='color: #28a745; font-weight: 600;'>{user['dept']}</span></div>", unsafe_allow_html=True)
         
         st.subheader("🚀 민원 카테고리")
         cats = [("🛠️ 시설/수리", "사옥·차량 유지보수, 장비 교체 및 수리 요청"), ("👤 입퇴사/이동", "제증명 발급, 인사 발령, 근무 확인 및 채용"), ("📋 프로세스/규정", "사내 규정 안내, 시스템 사용 이슈 및 보안 문의"), ("🎁 복지/휴가", "경조사, 지원금, 교육 지원 및 동호회 활동"), ("📢 불편사항", "근무 환경 내 불편 및 피해 사항 컴플레인"), ("💬 일반/기타", "단순 질의, 일반 업무 협조 및 기타 문의")]
@@ -170,50 +119,49 @@ else:
         for title, desc in cats:
             if st.button(f"{title}\n{desc}", key=title, disabled=st.session_state["inquiry_active"]):
                 st.session_state["inquiry_active"] = True
-                st.session_state.messages.append({"role": "assistant", "content": CATEGORY_GREETINGS.get(title)})
+                st.session_state.messages.append({"role": "assistant", "content": f"[{title}] 주제에 대해 문의해주셨네요. 무엇을 도와드릴까요?"})
                 st.rerun()
         
         st.markdown("---")
         if st.session_state["inquiry_active"]:
-            if st.button("✅ 현재 상담 종료하기", use_container_width=True): reset_chat()
+            if st.button("✅ 상담 종료 및 대화 초기화", use_container_width=True):
+                st.session_state["inquiry_active"] = False
+                st.session_state["messages"] = []
+                st.rerun()
         if st.button("🚪 로그아웃", use_container_width=True):
             st.session_state.clear()
             st.rerun()
 
     if not st.session_state.messages:
-        st.markdown(f"<div class='greeting-container'><p class='greeting-title'>{user['name']} {user['rank']}님, 반갑습니다! 👋</p><p class='greeting-subtitle'>무엇을 도와드릴까요?</p></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='greeting-container'><p class='greeting-title'>{user['name']} {user['rank']}님, 반갑습니다! 👋</p><p class='greeting-subtitle'>복지, 규정, 시설 문의 등 무엇을 도와드릴까요?</p></div>", unsafe_allow_html=True)
     
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]): st.write(msg["content"])
 
-    # [데이터 저장 로직 포함] 채팅 입력 처리
     if prompt := st.chat_input("문의 내용을 입력하세요"):
         st.session_state["inquiry_active"] = True
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.write(prompt)
         
-        # KCIM HR 매니저 페르소나
-        sys_msg = f"너는 1990년 창립된 KCIM의 HR 매니저야. {user['name']}님께 정중히 답변하고, 마지막엔 반드시 [CATEGORY:분류명]을 넣어줘."
+        # 1990년 창립 KCIM 정체성 반영
+        sys_msg = f"너는 1990년 창립된 KCIM의 HR 매니저야. {user['name']}님께 정중히 답변해줘. 시설 수리, 차량/숙소 예약 등 실무 처리가 필요한 건은 답변 끝에 반드시 [ACTION]을 붙여줘. 마지막엔 [CATEGORY:분류명]을 포함해줘."
         
         with st.spinner("KCIM 매니저가 답변을 작성 중입니다..."):
             try:
                 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-                response = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[{"role": "system", "content": sys_msg}] + st.session_state.messages
-                )
-                answer = response.choices[0].message.content
+                res = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "system", "content": sys_msg}] + st.session_state.messages)
+                answer = res.choices[0].message.content
                 
-                # 카테고리 추출 및 데이터 기록
-                category = "일반/기타"
-                cat_match = re.search(r'\[CATEGORY:(.*?)\]', answer)
-                if cat_match: category = cat_match.group(1)
+                # 시트 기록 분류 로직
+                status = "담당자 확인 필요" if "[ACTION]" in answer else "처리완료"
+                category = re.search(r'\[CATEGORY:(.*?)\]', answer).group(1) if "[CATEGORY:" in answer else "일반/기타"
+                clean_ans = answer.replace("[ACTION]", "").replace(f"[CATEGORY:{category}]", "").strip()
                 
-                clean_answer = answer.replace(f"[CATEGORY:{category}]", "").strip()
-                st.session_state.messages.append({"role": "assistant", "content": clean_answer})
+                st.session_state.messages.append({"role": "assistant", "content": clean_ans})
                 
-                # 시트 저장 실행
-                save_to_sheet(user['dept'], user['name'], user['rank'], category, prompt, clean_answer, "처리완료")
+                # 기록용 요약 처리 후 시트 저장
+                q_summary = summarize_text(prompt)
+                a_summary = summarize_text(clean_ans)
+                save_to_sheet(user['dept'], user['name'], user['rank'], category, q_summary, a_summary, status)
                 st.rerun()
-            except Exception as e:
-                st.error(f"오류 발생: {e}")
+            except: pass
