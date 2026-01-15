@@ -24,13 +24,13 @@ st.markdown("""
     section[data-testid="stSidebar"] { background-color: #ffffff !important; border-right: 1px solid #dee2e6; }
     .sidebar-user-box { background-color: #f8f9fa; padding: 20px; border-radius: 15px; border: 1px solid #edf0f2; margin-bottom: 20px; text-align: center; }
     
-    /* 카테고리 버튼 가독성 고정 (제목/내용 구분) */
+    /* 카테고리 버튼 가독성 고정 */
     div[data-testid="stSidebar"] .stButton > button { background-color: #ffffff !important; border: 1px solid #e9ecef !important; padding: 18px 15px !important; border-radius: 15px !important; width: 100% !important; margin-bottom: -5px !important; }
     div[data-testid="stSidebar"] .stButton > button div[data-testid="stMarkdownContainer"] p { font-size: 13px; color: #666; line-height: 1.5; white-space: pre-line; text-align: left; margin: 0; }
     div[data-testid="stSidebar"] .stButton > button div[data-testid="stMarkdownContainer"] p::first-line { font-size: 16px; font-weight: 700; color: #1a1c1e; }
     
-    /* 상담 중 버튼 비활성화 시각 효과 */
-    div[data-testid="stSidebar"] .stButton > button:disabled { background-color: #fcfcfc !important; opacity: 0.6; }
+    /* 베타 테스트 안내 문구 스타일 */
+    .beta-notice { font-size: 12px; color: #999; text-align: center; margin-top: 10px; line-height: 1.4; }
 
     /* 중앙 플랫 인사말 디자인 */
     .greeting-container { text-align: center; margin-bottom: 45px; padding: 25px 0; }
@@ -44,35 +44,36 @@ st.markdown("""
 # --------------------------------------------------------------------------
 COMPANY_DOCUMENTS_INFO = """
 [KCIM 최신 사내 규정 파일 지식]
-1. 2025년_복지제도.pdf: 연차, Refresh 휴가, 자녀 학자금, 경조금 등 전반
-2. 2025년 달라지는 육아지원제도.pdf: 육아휴직, 단축근무, 모성보호 등
-3. 2025_현장근무지원금_최종.pdf: 식대, 교통비, 출장, 원거리 지원금
-4. 사고발생처리 매뉴얼.pdf: 사고 보고 절차, 산재처리, 민원대응
-5. 행동규범.pdf: 윤리 규정, 임직원 행동 수칙 및 위반 시 처리
-6. 취업규칙_2025.pdf: 근무시간, 휴가, 복무, 징계 등 전반 규칙
-7. 노동부 지원금 매뉴얼.pdf: 청년고용, 출산육아 정부지원 신청 방법
-8. KCIM 계약서 검토 프로세스.pdf: 계약서 작성/검토 절차 및 법무검토
-9. 2024 재택근무 내부프로세스.pdf: 재택근무 신청 절차 및 근태 기록
-10. 2024_재택근무_운영규정.pdf: 재택 운영 지침 및 예외 사항
-11. 연차유예 및 대체휴가 지침.pdf: 연차이월, 소진기한, 대체휴가 처리
-12. 임직원 연락망_2025.pdf: 부서별 담당자 및 소속 연락처 정보
-13. 도서구입 및 도서관 운영지침.docx: 도서 신청, 사내 지식경영 절차
-14. 사내동호회운영규정.pdf: 동호회 창설, 운영비 지원, 승인 절차
-15. 사내 와이파이 정보.pdf: 층별 SSID 및 비밀번호 안내
-16. 2023_KCIM_사내도서지원.pptx: 사내 도서 지원 제도 홍보 및 안내
-17. 경영관리본부 업무분장표.pdf: 본부별 담당 직무 및 부서 역할
+1. 2025년_복지제도.pdf: 연차, Refresh 휴가, 자녀 학자금, 경조금 등 복지제도 전반
+2. 2025년 달라지는 육아지원제도.pdf: 육아휴직, 육아기 단축근무, 정부지원 요약
+3. 2025_현장근무지원금_최종.pdf: 현장근무자에 대한 식대, 교통비, 근무지 원거리 지원
+4. 사고발생처리 매뉴얼.pdf: 사고 발생 시 보고 절차, 산재처리 프로세스
+5. 행동규범.pdf: 임직원 행동 수칙 및 윤리 규정, 기준 위반 시 처리
+6. 취업규칙_2025.pdf: 근무시간, 휴가, 징계, 복무 등 회사 취업 전반 규정
+7. 노동부 지원금 매뉴얼.pdf: 청년고용장려금, 출산육아 정부지원금 신청방법
+8. KCIM 계약서 검토 프로세스.pdf: 계약서 작성/검토/보관 절차 및 체크포인트
+9. 2024 재택근무 내부프로세스.pdf: 재택근무 신청, 승인, 근태기록 방식
+10. 2024_재택근무_운영규정.pdf: 재택근무 운영 기준과 예외사항
+11. 연차유예 및 대체휴가 지침.pdf: 연차이월 기준, 대체휴가 처리 방식, 소진기한
+12. 임직원 연락망_2025.pdf: 부서별 연락처, 담당자 정보
+13. 도서구입 및 도서관 운영지침.docx: 사내 도서관 이용 방법, 도서구입 신청절차
+14. 사내동호회운영규정.pdf: 동호회 창설, 운영비 지원, 활동 보고서 등
+15. 사내 와이파이 정보.pdf: 각 층별 와이파이 명칭(SSID) 및 비밀번호
+16. 2023_KCIM_사내도서지원.pptx: 사내 도서지원 제도 안내 프레젠테이션
+17. 경영관리본부 업무분장표.pdf: 본부별 담당업무 분장 및 직무 담당자
 """
 
 # --------------------------------------------------------------------------
 # [2] 유틸리티 기능 (KST 보정, 요약, 시트 저장)
 # --------------------------------------------------------------------------
-def get_kst_time():
+def get_kst_now():
     """서버 시간과 관계없이 한국 표준시(KST) 반환"""
-    return datetime.now(timezone(timedelta(hours=9)))
+    kst = timezone(timedelta(hours=9))
+    return datetime.now(kst)
 
 def get_dynamic_greeting():
     """KST 기준 시간대별 맞춤형 인사말 생성"""
-    now_hour = get_kst_time().hour
+    now_hour = get_kst_now().hour
     if 5 <= now_hour < 11: return "좋은 아침입니다! 오늘도 활기차게 시작해볼까요? ☀️"
     elif 11 <= now_hour < 14: return "즐거운 점심시간입니다. 맛있는 식사 하셨나요? 🍱"
     elif 14 <= now_hour < 18: return "즐거운 오후입니다. 업무 중에 궁금한 점이 있으신가요? ☕"
@@ -100,7 +101,7 @@ def save_to_sheet(dept, name, rank, category, question, answer, status):
             ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
         )
         sheet = gspread.authorize(creds).open_by_url(sheet_url).worksheet("응답시트")
-        current_time = get_kst_time().strftime("%Y-%m-%d %H:%M:%S")
+        current_time = get_kst_now().strftime("%Y-%m-%d %H:%M:%S")
         sheet.append_row([current_time, dept, name, rank, category, question, answer, status])
     except: pass
 
@@ -149,7 +150,7 @@ if not st.session_state["logged_in"]:
 else:
     user = st.session_state["user_info"]
     with st.sidebar:
-        # KCIM 로고 및 텍스트 중앙 정렬
+        # KCIM 로고 중앙 정렬
         st.markdown("<div style='text-align: center; width: 100%;'><h2 style='color: #1a1c1e; margin-bottom: 20px;'>🏢 KCIM</h2></div>", unsafe_allow_html=True)
         
         # 사용자 정보창 (HR팀 표기)
@@ -165,8 +166,8 @@ else:
                 st.session_state.messages.append({"role": "assistant", "content": f"[{title}] 주제에 대해 상담을 시작합니다. 무엇을 도와드릴까요?"})
                 st.rerun()
         
-        # [요청사항] 카테고리 아래 간격을 띄운 후 로그아웃 배치
-        st.markdown("<br><br><br>", unsafe_allow_html=True)
+        # [요청사항] 간격을 소폭 조정(기존 <br> 3개에서 1개로)하여 로그아웃 버튼을 위로 올림
+        st.markdown("<br>", unsafe_allow_html=True)
         
         if st.session_state["inquiry_active"]:
             if st.button("✅ 현재 상담 종료하기", use_container_width=True):
@@ -177,11 +178,19 @@ else:
         if st.button("🚪 안전하게 로그아웃", use_container_width=True):
             st.session_state.clear()
             st.rerun()
+        
+        # [요청사항] 로그아웃 버튼 아래 안내 멘트 추가
+        st.markdown("<p class='beta-notice'>이 챗봇은 현재 베타테스트중입니다.<br>오류가 나도 이해해주세요:)</p>", unsafe_allow_html=True)
 
-    # 메인 인사말 (시간대별 다채로운 인사말 적용)
+    # 메인 인사말 (시간대별 맞춤 문구 적용)
     if not st.session_state.messages:
         dynamic_greeting = get_dynamic_greeting()
-        st.markdown(f"<div class='greeting-container'><p class='greeting-title'>{user['name']} {user['rank']}님, 반갑습니다! 👋</p><p class='greeting-subtitle'>{dynamic_greeting}</p></div>", unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class='greeting-container'>
+            <p class="greeting-title">{user['name']} {user['rank']}님, 반갑습니다! 👋</p>
+            <p class="greeting-subtitle">{dynamic_greeting}</p>
+        </div>
+        """, unsafe_allow_html=True)
     
     # 대화 기록 렌더링
     for msg in st.session_state.messages:
@@ -193,7 +202,6 @@ else:
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.write(prompt)
         
-        # HR팀 매니저 페르소나 및 지침
         sys_msg = f"""너는 1990년 창립된 KCIM의 HR팀 매니저야. {user['name']}님께 정중히 답변해줘.
         아래의 최신 사내 규정 파일 목록을 정확히 참고하여 답변하고, 근거가 되는 파일명을 언급해줘:
         {COMPANY_DOCUMENTS_INFO}
@@ -219,6 +227,5 @@ else:
                 # 시트 실시간 요약 저장
                 save_to_sheet(user['dept'], user['name'], user['rank'], category, summarize_text(prompt), summarize_text(clean_ans), status)
                 
-                # 즉시 새로고침하여 답변 표시
                 st.rerun() 
             except: pass
