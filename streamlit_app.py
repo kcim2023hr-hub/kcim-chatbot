@@ -22,7 +22,7 @@ st.title("🤖 KCIM 사내 민원/문의 챗봇")
 def load_employee_db():
     file_name = 'members.xlsx' 
     db = {}
-    # 관리자 정보 및 전화번호 업데이트
+    # 관리자 정보 및 전화번호 업데이트 (02-772-5806)
     db["관리자"] = {"pw": "1323", "dept": "HR팀", "rank": "매니저", "tel": "02-772-5806"}
     if os.path.exists(file_name):
         try:
@@ -82,7 +82,7 @@ def load_data():
 ORG_CHART_DATA, COMPANY_RULES, INTRANET_GUIDE = load_data()
 
 # --------------------------------------------------------------------------
-# [2] 외부 연동 (Flow 404 에러 해결 로직 포함)
+# [2] 외부 연동 (Flow 404 에러를 정면 돌파하는 3중 전송 로직)
 # --------------------------------------------------------------------------
 try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
@@ -105,33 +105,31 @@ def send_flow_alert(category, question, name, dept):
     if not flow_secrets: return
     api_key = flow_secrets.get("api_key")
     # image_6cbc4f에서 확인된 진짜 프로젝트 ID "2786111"
-    room_code = flow_secrets.get("flow_room_code", "2786111")
+    p_id = flow_secrets.get("flow_room_code", "2786111")
     
     headers = {"Content-Type": "application/json", "x-flow-api-key": api_key}
-    content = f"[🚨 챗봇 민원 알림]\n- 요청자: {name} ({dept})\n- 분류: {category}\n- 내용: {question}"
+    content = f"[🚨 챗봇 민원 알림]\n- 요청자: {name} ({dept})\n- 분류: {category}\n- 내용: {question}\n- 일시: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
 
-    # ★ [수정] 404 해결을 위한 새로운 API 경로 시도
-    # 플로우 가이드에 따라 URL 경로에 프로젝트 코드를 삽입합니다.
-    try:
-        url = f"https://api.flow.team/v1/projects/{room_code}/posts"
-        payload = {"title": "🤖 챗봇 민원 접수", "content": content}
-        res = requests.post(url, json=payload, headers=headers, timeout=5)
-        
-        if res.status_code == 200:
-            st.toast("✅ Flow 피드 전송 성공!")
-            return True
-        else:
-            # 실패 시 백업 경로(기존 경로)로 재시도
-            backup_url = "https://api.flow.team/v1/projects/posts"
-            backup_payload = {"project_code": room_code, "title": "🤖 챗봇 민원 접수", "content": content}
-            res_bk = requests.post(backup_url, json=backup_payload, headers=headers, timeout=5)
-            if res_bk.status_code == 200:
-                st.toast("✅ Flow 피드 전송 성공(백업)")
+    # ★ [해결책] 404 에러 방지를 위한 3중 시도 (Endpoint 다각화)
+    endpoints = [
+        # 1. 프로젝트 전용 피드 주소 (가장 권장)
+        (f"https://api.flow.team/v1/projects/{p_id}/posts", {"title": "🤖 챗봇 민원 접수", "content": content}),
+        # 2. 일반 포스팅 주소 (대체 경로)
+        ("https://api.flow.team/v1/posts", {"project_code": p_id, "title": "🤖 챗봇 민원 접수", "content": content}),
+        # 3. 프로젝트 메시지 주소 (최후의 수단)
+        ("https://api.flow.team/v1/messages/room", {"room_code": p_id, "content": content})
+    ]
+
+    for url, payload in endpoints:
+        try:
+            res = requests.post(url, json=payload, headers=headers, timeout=5)
+            if res.status_code == 200:
+                st.toast(f"✅ Flow 알림 전송 성공")
                 return True
-            else:
-                st.error(f"❌ 전송 실패 ({res_bk.status_code}): {res_bk.text}")
-    except Exception as e:
-        st.error(f"❌ 연결 에러: {e}")
+        except: continue
+    
+    # 모든 시도가 실패할 경우 마지막 에러만 표시
+    st.error(f"❌ 모든 경로 전송 실패 (최종 응답: {res.status_code})")
     return False
 
 # --------------------------------------------------------------------------
@@ -185,11 +183,11 @@ else:
         system_instruction = f"""너는 KCIM의 HR AI 매니저야. 아래 자료를 바탕으로 답변해줘.
         [자료]: {ORG_CHART_DATA} {COMPANY_RULES} {INTRANET_GUIDE}
         
-        1. 시설/수리 관련 질문이나 전문 답변이 필요한 내용은 반드시 [ACTION] 태그를 붙여.
+        1. 시설/수리 관련 질문이나 직접 해결이 어려운 요청은 반드시 [ACTION] 태그를 붙여.
         2. 답변 시 절대 '이 문제는 HR팀 이경한 매니저에게 문의하셔야 처리할 수 있습니다'라는 문구는 쓰지 마.
         3. 대신 '해당 사안은 담당 부서의 확인이 필요합니다. 내용을 전달하였으니 잠시만 기다려 주세요.'라고 정중히 답해.
-        4. 모든 답변 끝에 [CATEGORY:분류명]을 꼭 달아줘.
-        5. 전화번호 안내가 필요하면 반드시 02-772-5806으로 안내해.
+        4. 모든 답변 끝에 [CATEGORY:분류명]을 달아줘.
+        5. 상담 안내 번호는 02-772-5806으로 안내해.
         """
         
         try:
