@@ -15,14 +15,14 @@ st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢")
 st.title("🤖 KCIM 사내 민원/문의 챗봇")
 
 # --------------------------------------------------------------------------
-# [1] 데이터 로드 (02-772-5806 및 문구 수정 반영)
+# [1] 데이터 로드 (02-772-5806 반영 완료)
 # --------------------------------------------------------------------------
 
 @st.cache_data
 def load_employee_db():
     file_name = 'members.xlsx' 
     db = {}
-    # 전화번호 02-772-5806 업데이트
+    # 전화번호 수정 반영 [cite: 02-772-5806]
     db["관리자"] = {"pw": "1323", "dept": "HR팀", "rank": "매니저", "tel": "02-772-5806"}
     if os.path.exists(file_name):
         try:
@@ -50,18 +50,14 @@ def load_data():
     for file_name in os.listdir('.'):
         if "org" in file_name.lower() or "조직도" in file_name.lower():
             try:
-                with open(file_name, 'r', encoding='utf-8') as f:
-                    org_text += f.read() + "\n"
+                with open(file_name, 'r', encoding='utf-8') as f: org_text += f.read() + "\n"
             except:
-                with open(file_name, 'r', encoding='cp949') as f:
-                    org_text += f.read() + "\n"
+                with open(file_name, 'r', encoding='cp949') as f: org_text += f.read() + "\n"
         elif "intranet" in file_name.lower() and file_name.endswith('.txt'):
             try:
-                with open(file_name, 'r', encoding='utf-8') as f:
-                    intranet_guide += f.read() + "\n"
+                with open(file_name, 'r', encoding='utf-8') as f: intranet_guide += f.read() + "\n"
             except:
-                with open(file_name, 'r', encoding='cp949') as f:
-                    intranet_guide += f.read() + "\n"
+                with open(file_name, 'r', encoding='cp949') as f: intranet_guide += f.read() + "\n"
         elif file_name.lower().endswith('.pdf'):
             try:
                 reader = PyPDF2.PdfReader(file_name)
@@ -71,11 +67,9 @@ def load_data():
             except: pass
         elif file_name.lower().endswith('.txt') and file_name != "requirements.txt":
             try:
-                with open(file_name, 'r', encoding='utf-8') as f:
-                    general_rules += f.read() + "\n"
+                with open(file_name, 'r', encoding='utf-8') as f: general_rules += f.read() + "\n"
             except:
-                with open(file_name, 'r', encoding='cp949') as f:
-                    general_rules += f.read() + "\n"
+                with open(file_name, 'r', encoding='cp949') as f: general_rules += f.read() + "\n"
     return org_text, general_rules, intranet_guide
 
 ORG_CHART_DATA, COMPANY_RULES, INTRANET_GUIDE = load_data()
@@ -157,7 +151,7 @@ else:
             if st.button("🚀 플로우 방 번호(SRNO) 조회"):
                 st.session_state["show_room_finder"] = True
 
-    # --- [수정] 방 번호 조회 도구 (원시 데이터 출력 방식 추가) ---
+    # --- [업데이트] 방 번호 조회 도구 (모든 키값 전수조사) ---
     if st.session_state.get("show_room_finder"):
         st.info("🎯 플로우 프로젝트 목록 조회 결과")
         try:
@@ -170,15 +164,17 @@ else:
             if project_list:
                 st.write(f"총 {len(project_list)}개의 방이 있습니다.")
                 for p in project_list:
-                    # 모든 가능성 있는 키를 다 체크합니다.
-                    p_name = p.get("TITLE") or p.get("project_title") or p.get("title") or "이름없음"
-                    p_id = p.get("PROJECT_SRNO") or p.get("project_srno") or p.get("srno") or "ID없음"
+                    # 이름 찾기 (TITLE, title, project_title 등 모든 가능성)
+                    p_name = p.get("TITLE") or p.get("title") or p.get("project_title") or "이름없음"
                     
-                    if p_name == "이름없음" and p_id == "ID없음":
-                        # 만약 여전히 못 찾는다면, 첫 번째 데이터의 전체 구조를 보여줍니다 (디버깅용)
-                        st.warning("⚠️ 데이터 형식이 예상과 다릅니다. 원본을 출력합니다.")
-                        st.json(p)
-                        break
+                    # ★ [핵심] ID 찾기 (SRNO, CODE, ID 등 모든 숫자형 키 조사)
+                    p_id = p.get("PROJECT_SRNO") or p.get("project_code") or p.get("PROJECT_CODE") or p.get("project_srno") or "ID없음"
+                    
+                    if p_id == "ID없음":
+                        # 만약 여전히 못 찾는다면, 해당 방의 전체 데이터를 매니저님이 보실 수 있게 출력
+                        if p_name == "[민원챗봇] 수신전용프로젝트":
+                            st.warning(f"⚠️ '{p_name}' 방의 데이터를 찾았으나 ID 키를 확정할 수 없습니다. 아래 전체 정보에서 숫자로 된 값을 찾아보세요.")
+                            st.json(p) 
                     else:
                         st.code(f"방이름: {p_name}  👉  ID: {p_id}")
             else:
@@ -186,14 +182,14 @@ else:
                 st.json(data)
         except Exception as e: st.error(f"오류: {e}")
         
-        if st.button("닫기"): 
+        if st.button("목록 닫기"): 
             st.session_state["show_room_finder"] = False
             st.rerun()
 
     st.markdown(f"### 👋 안녕하세요, {user['name']} {user.get('rank','')}님!")
     
     if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "assistant", "content": "반갑습니다! 👋 **복지, 규정, 불편사항, 시설 이용** 등 궁금한 점을 물어보세요."}]
+        st.session_state.messages = [{"role": "assistant", "content": "반갑습니다! 👋 **복지, 규정, 불편사항, 시설 이용** 등 궁금한 점이 있으시면 언제든 물어보세요."}]
 
     for msg in st.session_state.messages: st.chat_message(msg["role"]).write(msg["content"])
 
@@ -201,15 +197,15 @@ else:
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.chat_message("user").write(prompt)
 
-        # 요청사항 반영: 특정 매니저 언급 문구 제거
-        system_instruction = f"""너는 KCIM의 HR AI 매니저야.
+        # 문구 요청 반영: 특정 관리자 언급 제거
+        system_instruction = f"""너는 KCIM의 HR AI 매니저야. 아래 자료를 바탕으로 답변해줘.
         [자료]: {ORG_CHART_DATA} {COMPANY_RULES} {INTRANET_GUIDE}
         
-        1. 시설/수리 관련 질문이나 전문 답변이 필요한 내용은 [ACTION] 태그를 붙여.
+        1. 시설/수리 관련 질문이나 전문적인 답변이 필요한 내용은 [ACTION] 태그를 붙여.
         2. 절대 '이 문제는 HR팀 이경한 매니저에게 문의하셔야 처리할 수 있습니다'라는 문구는 쓰지 마.
         3. 대신 '해당 사안은 담당 부서의 확인이 필요합니다. 내용을 전달하였으니 잠시만 기다려 주세요.'라고 정중히 답해.
         4. 모든 답변 끝에 [CATEGORY:분류]를 달아.
-        5. 전화번호 안내가 필요하면 반드시 02-772-5806으로 안내해.
+        5. 전화번호 안내가 필요하면 반드시 02-772-5806으로 안내해. [cite: 02-772-5806]
         """
         
         try:
