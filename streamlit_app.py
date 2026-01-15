@@ -14,14 +14,14 @@ st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢")
 st.title("🤖 KCIM 사내 민원/문의 챗봇")
 
 # --------------------------------------------------------------------------
-# [1] 데이터 로드 (조직도, 규정, 인트라넷 가이드)
+# [1] 데이터 로드 (02-772-5806 업데이트 완료)
 # --------------------------------------------------------------------------
 
 @st.cache_data
 def load_employee_db():
     file_name = 'members.xlsx' 
     db = {}
-    # 요청하신 전화번호로 업데이트 완료 (02-772-5806)
+    # 전화번호 수정 반영
     db["관리자"] = {"pw": "1323", "dept": "HR팀", "rank": "매니저", "tel": "02-772-5806"}
     if os.path.exists(file_name):
         try:
@@ -74,7 +74,7 @@ def load_data():
 ORG_CHART_DATA, COMPANY_RULES, INTRANET_GUIDE = load_data()
 
 # --------------------------------------------------------------------------
-# [2] 외부 연동 (OpenAI, Google Sheets, Flow API)
+# [2] 외부 연동 설정
 # --------------------------------------------------------------------------
 sheet_url = "https://docs.google.com/spreadsheets/d/1jckiUzmefqE_PiaSLVHF2kj2vFOIItc3K86_1HPWr_4/edit#gid=1434430603"
 
@@ -83,7 +83,7 @@ try:
     google_secrets = st.secrets["google_sheets"]
     flow_secrets = st.secrets.get("flow", None)
 except Exception as e:
-    st.error(f"🔑 설정 오류: Secrets 설정을 확인해주세요. ({e})")
+    st.error(f"🔑 설정 오류: {e}")
     st.stop()
 
 def save_to_sheet(dept, name, rank, category, question, answer, status):
@@ -96,37 +96,36 @@ def save_to_sheet(dept, name, rank, category, question, answer, status):
         sheet.append_row([now, dept, name, rank, category, question, answer, status]) 
     except: pass
 
+# ★ [수정] 404 방지를 위해 Post API와 Message API를 통합 시도
 def send_flow_alert(category, question, name, dept):
     if not flow_secrets: return
     api_key = flow_secrets.get("api_key")
-    # 매니저님의 BFLOW ID 적용 완료
-    room_code = flow_secrets.get("flow_room_code", "BFLOW_211214145658")
+    room_code = flow_secrets.get("flow_room_code", "")
     
+    if not room_code: return
+
     headers = {"Content-Type": "application/json", "x-flow-api-key": api_key}
-    icon = "🚨" if "시설" in category else "📢"
-    
-    # 404 해결을 위한 게시글(Post) 전송 주소
-    url = "https://api.flow.team/v1/projects/posts"
-    
-    payload = {
-        "project_code": room_code,
-        "title": f"[{icon} 챗봇 민원 알림]",
-        "body": f"요청자: {name} ({dept})\n분류: {category}\n내용: {question}\n일시: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
-    }
-    
+    content = f"[🚨 챗봇 민원 알림]\n- 요청자: {name} ({dept})\n- 분류: {category}\n- 내용: {question}"
+
+    # 프로젝트 게시글로 시도 (가장 권장되는 방식)
     try:
-        # 1순위: 게시글 등록 시도
+        url = "https://api.flow.team/v1/projects/posts"
+        payload = {"project_code": room_code, "title": "🤖 챗봇 민원 접수", "body": content}
         response = requests.post(url, json=payload, headers=headers, timeout=5)
         if response.status_code == 200:
-            st.toast("✅ Flow 프로젝트에 민원글이 등록되었습니다.")
-        else:
-            # 2순위: 실패 시 일반 메시지 전송 시도
-            backup_url = "https://api.flow.team/v1/messages/room"
-            requests.post(backup_url, json={"room_code": room_code, "content": payload["body"]}, headers=headers, timeout=5)
+            st.toast("✅ Flow 알림 성공")
+            return
+    except: pass
+
+    # 게시글 실패 시 메시지로 재시도
+    try:
+        url = "https://api.flow.team/v1/messages/room"
+        payload = {"room_code": room_code, "content": content}
+        requests.post(url, json=payload, headers=headers, timeout=5)
     except: pass
 
 # --------------------------------------------------------------------------
-# [3] 메인 화면 및 UI
+# [3] UI 및 로직
 # --------------------------------------------------------------------------
 if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 
@@ -134,14 +133,14 @@ if not st.session_state["logged_in"]:
     st.header("🔒 임직원 신원 확인")
     with st.form("login"):
         name_input = st.text_input("성명")
-        pw_input = st.text_input("비밀번호 (휴대폰 뒷 4자리)", type="password")
+        pw_input = st.text_input("비밀번호", type="password")
         if st.form_submit_button("접속"):
             if name_input in EMPLOYEE_DB and EMPLOYEE_DB[name_input]["pw"] == pw_input:
                 st.session_state["logged_in"] = True
                 st.session_state["user_info"] = EMPLOYEE_DB[name_input]
                 st.session_state["user_info"]["name"] = name_input
                 st.rerun()
-            else: st.error("정보가 일치하지 않습니다.")
+            else: st.error("정보 불일치")
 else:
     user = st.session_state["user_info"]
     with st.sidebar:
@@ -154,15 +153,26 @@ else:
         if user['name'] in ["이경한", "관리자"]:
             st.divider()
             st.markdown("### 🛠️ 관리자 도구")
-            with st.expander("📂 시스템 파일 현황"):
-                all_files = sorted(os.listdir('.'))
-                for f in all_files:
+            # ★ 진짜 방 번호를 찾아주는 도구 추가
+            if st.button("🚀 플로우 방 번호(SRNO) 조회"):
+                try:
+                    res = requests.get("https://api.flow.team/v1/projects", headers={"x-flow-api-key": flow_secrets["api_key"]})
+                    if res.status_code == 200:
+                        data = res.json().get("list", [])
+                        st.write("아래에서 방 번호를 찾아 Secrets에 넣어주세요:")
+                        for p in data:
+                            st.code(f"방이름: {p.get('TITLE')} -> 번호: {p.get('PROJECT_SRNO')}")
+                    else: st.error("조회 실패 (API 키 확인 필요)")
+                except Exception as e: st.error(f"오류: {e}")
+
+            with st.expander("📂 파일 현황"):
+                for f in os.listdir('.'):
                     if f.endswith(('.pdf', '.txt')) and f != 'requirements.txt': st.caption(f"- {f}")
 
-    st.markdown(f"### 👋 안녕하세요, {user['name']} {user.get('rank','')}님!")
+    st.markdown(f"### 👋 안녕하세요, {user['name']} 매니저님!")
     
     if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "assistant", "content": "반갑습니다! 👋 **복지, 규정, 불편사항, 시설 이용** 등 궁금한 점이 있으시면 언제든 물어보세요."}]
+        st.session_state.messages = [{"role": "assistant", "content": "반갑습니다! 👋 궁금한 점이 있으시면 언제든 물어보세요."}]
 
     for msg in st.session_state.messages:
         st.chat_message(msg["role"]).write(msg["content"])
@@ -171,13 +181,12 @@ else:
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.chat_message("user").write(prompt)
 
-        system_instruction = f"""너는 KCIM의 HR/총무 매니저야. 아래 자료를 바탕으로 답변해줘.
-        [조직도]: {ORG_CHART_DATA} [규정]: {COMPANY_RULES} [인트라넷 가이드]: {INTRANET_GUIDE}
+        system_instruction = f"""너는 KCIM의 HR/총무 매니저야.
+        [자료]: {ORG_CHART_DATA} {COMPANY_RULES} {INTRANET_GUIDE}
         
-        1. 시설/환경/수리 관련 질문이나 직접 해결이 어려운 요청은 [ACTION] 태그를 붙여. 
-           (단, "이 문제는 HR팀 이경한 매니저에게 문의하셔야..."라는 특정 안내 문구는 절대 사용하지 마.)
-        2. 모든 답변 끝에는 [CATEGORY:분류명]을 꼭 달아줘.
-        3. 상담이 필요할 경우 안내 번호는 02-772-5806이야.
+        1. 시설/수리 관련 질문은 [ACTION] 태그를 붙여. (특정 매니저 언급 문구는 제외)
+        2. 모든 답변 끝에 [CATEGORY:분류]를 달아줘.
+        3. 전화번호 안내가 필요하면 02-772-5806으로 안내해.
         """
         
         try:
@@ -185,14 +194,14 @@ else:
                 model="gpt-4o-mini",
                 messages=[{"role": "system", "content": system_instruction}, {"role": "user", "content": prompt}]
             )
-            response_text = completion.choices[0].message.content
+            raw = completion.choices[0].message.content
             
             category = "기타"
-            cat_match = re.search(r'\[CATEGORY:(.*?)\]', response_text)
+            cat_match = re.search(r'\[CATEGORY:(.*?)\]', raw)
             if cat_match: category = cat_match.group(1)
             
-            final_status = "담당자확인필요" if "[ACTION]" in response_text else "처리완료"
-            clean_ans = response_text.replace("[ACTION]","").replace(f"[CATEGORY:{category}]","").strip()
+            final_status = "담당자확인필요" if "[ACTION]" in raw else "처리완료"
+            clean_ans = raw.replace("[ACTION]","").replace(f"[CATEGORY:{category}]","").strip()
             
             save_to_sheet(user['dept'], user['name'], user.get('rank',''), category, prompt, clean_ans, final_status)
             if final_status == "담당자확인필요":
@@ -200,5 +209,4 @@ else:
 
             st.session_state.messages.append({"role": "assistant", "content": clean_ans})
             st.chat_message("assistant").write(clean_ans)
-        except Exception as e:
-            st.error(f"❌ 오류 발생: {e}")
+        except Exception as e: st.error(f"오류: {e}")
