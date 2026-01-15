@@ -187,41 +187,7 @@ else:
             st.rerun()
         
         # 안내 문구 및 여백
-        st.markdown("<p class='beta-notice'>※이 챗봇은 현재 베타 테스트중입니다.<br>오류가 많아도 이해 바랍니다.:)</p>", unsafe_allow_html=True)
-
-    # 6. 메인 인사말 복구
-    if not st.session_state.messages:
-        dynamic_greeting = get_dynamic_greeting()
-        st.markdown(f"<div class='greeting-container'><p class='greeting-title'>{user['name']} {user['rank']}님, 반갑습니다! 👋</p><p class='greeting-subtitle'>{dynamic_greeting}</p></div>", unsafe_allow_html=True)
-    
-    # 대화 기록 렌더링 + [핵심] 파일 다운로드 버튼 로직
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.write(msg["content"])
-            if msg["role"] == "assistant":
-                for file_name in RULES_LIST:
-                    if file_name in msg["content"]:
-                        file_path = f"rules/{file_name}"
-                        if os.path.exists(file_path):
-                            with open(file_path, "rb") as f:
-                                st.download_button(label=f"📂 {file_name} 다운로드", data=f, file_name=file_name, mime="application/octet-stream", key=f"dl_{file_name}_{msg['content'][:10]}")
-
-    # 채팅 입력 및 답변 생성 (답변 즉시 표시 및 요약 기록)
-    if prompt := st.chat_input("문의 내용을 입력하세요"):
-        st.session_state["inquiry_active"] = True
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"): st.write(prompt)
-        
-        sys_msg = f"""너는 1990년 창립된 KCIM의 HR팀 매니저야. {user['name']}님께 정중히 답변해줘.
-        아래 최신 규정 파일 목록 중 관련 있는 파일명을 정확히 언급하며 답변해줘:
-        {COMPANY_DOCUMENTS_INFO}
-        
-        [원칙]
-        1. 시설 수리 등 실무 확인이 필요한 건은 끝에 반드시 [ACTION]을 붙여줘.
-        2. 마지막엔 반드시 [CATEGORY:분류명]을 포함해줘.
-        """
-        
-        with st.spinner("KCIM 매니저가 규정을 확인 중입니다..."):
+        st.mar자가 규정을 확인 중입니다..."):
             try:
                 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
                 res = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "system", "content": sys_msg}] + st.session_state.messages)
