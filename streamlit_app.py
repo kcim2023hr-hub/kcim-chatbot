@@ -56,11 +56,12 @@ def load_employee_db():
 
 EMPLOYEE_DB = load_employee_db()
 
-# 1-2. 데이터 로드
+# 1-2. 데이터 로드 (인트라넷 가이드 추가)
 @st.cache_data
 def load_data():
     org_text = ""
     general_rules = ""
+    intranet_guide = "" # 인트라넷 가이드 변수
     
     for file_name in os.listdir('.'):
         # 1. 조직도 파일
@@ -74,7 +75,17 @@ def load_data():
                         org_text += f.read() + "\n"
             continue 
 
-        # 2. PDF 규정
+        # 2. 인트라넷 가이드 파일 (신규)
+        if "intranet" in file_name.lower() and file_name.endswith('.txt'):
+            try:
+                with open(file_name, 'r', encoding='utf-8') as f:
+                    intranet_guide += f.read() + "\n"
+            except:
+                with open(file_name, 'r', encoding='cp949') as f:
+                    intranet_guide += f.read() + "\n"
+            continue
+
+        # 3. PDF 규정
         if file_name.lower().endswith('.pdf'):
             try:
                 reader = PyPDF2.PdfReader(file_name)
@@ -85,7 +96,7 @@ def load_data():
                 general_rules += f"\n\n=== [사내 규정 파일: {file_name}] ===\n{content}\n"
             except: pass
         
-        # 3. TXT 자료
+        # 4. TXT 자료
         elif file_name.lower().endswith('.txt') and file_name != "requirements.txt":
             try:
                 with open(file_name, 'r', encoding='utf-8') as f: content = f.read()
@@ -93,9 +104,9 @@ def load_data():
                 with open(file_name, 'r', encoding='cp949') as f: content = f.read()
             general_rules += f"\n\n=== [참고 자료: {file_name}] ===\n{content}\n"
 
-    return org_text, general_rules
+    return org_text, general_rules, intranet_guide
 
-ORG_CHART_DATA, COMPANY_RULES = load_data()
+ORG_CHART_DATA, COMPANY_RULES, INTRANET_GUIDE = load_data()
 
 # --------------------------------------------------------------------------
 # [2] 구글 시트 및 OpenAI 설정
@@ -120,12 +131,10 @@ def save_to_sheet(dept, name, rank, category, question, answer, status):
     except Exception as e:
         pass
 
-# ★ [신규 기능] 텍스트 요약 함수
+# 텍스트 요약 함수
 def summarize_text(text):
-    # 너무 짧으면 요약 안 함
     if len(text) < 30:
         return text
-    
     try:
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -137,7 +146,7 @@ def summarize_text(text):
         )
         return completion.choices[0].message.content.strip()
     except:
-        return text[:100] + "..." # 에러 시 앞부분만 자름
+        return text[:100] + "..."
 
 def check_finish_intent(user_input):
     try:
@@ -213,10 +222,10 @@ else:
                     for f in excels: st.caption(f"- {f}")
 
             with st.expander("👀 데이터 로드 상태 확인", expanded=False):
-                st.write("✅ [1] 조직도 데이터 (앞부분)")
-                st.text(ORG_CHART_DATA[:150] + "...")
-                st.write("✅ [2] 규정/업무분장 (앞부분)")
-                st.text(COMPANY_RULES[:150] + "...")
+                st.write("✅ [1] 조직도 데이터")
+                st.text(ORG_CHART_DATA[:100] + "...")
+                st.write("✅ [2] 인트라넷 가이드")
+                st.text(INTRANET_GUIDE[:100] + "...") # 로드 확인용
 
     # ----------------------------------------------------------------------
     # [메인 화면]
@@ -260,6 +269,7 @@ else:
             [2단계: 사내 데이터 우선 검색]
             {ORG_CHART_DATA}
             {COMPANY_RULES}
+            {INTRANET_GUIDE}
 
             [3단계: 답변 작성 원칙 및 카테고리 분류]
             
@@ -268,17 +278,23 @@ else:
             - 답변: "시설 관련 문의는 **HR팀 이경한 매니저에게 문의바랍니다.**"
             - 태그: [CATEGORY:시설/환경] [ACTION]
             - 더 이상 다른 말을 덧붙이지 마.
+            
+            ★ 1순위 (어울지기/인트라넷 사용법 문의) ★
+            - 질문이 '휴가 신청 어디서', '법인카드 결재 방법', '증명서 발급' 등 시스템 사용법이면:
+            - 답변: [KCIM 어울지기 가이드] 데이터를 참고하여 "어울지기 접속 > 좌측 메뉴 [OOO] > [OOO]" 순서로 정확하게 안내해.
+            - 태그: [CATEGORY:프로세스/규정]
 
-            1. 일반 답변 시:
+            2. 일반 답변 시:
                - 사내 자료가 있으면 그것을 바탕으로 답해.
                - 사내 자료가 없으면 일반 지식으로 답하되 경고 문구("⚠️ 일반적인 기준 안내")를 붙여.
                - 담당자 연결이 필요하면 [ACTION] 태그를 붙여.
 
-            2. ★ 필수: 답변 맨 마지막 줄에 질문의 성격을 아래 중 하나로 분류해서 태그를 달아줘.
+            3. ★ 필수: 답변 맨 마지막 줄에 질문의 성격을 아래 중 하나로 분류해서 태그를 달아줘.
                - [CATEGORY:인사/근태]
                - [CATEGORY:총무/복지]
                - [CATEGORY:시설/환경]
                - [CATEGORY:IT/보안]
+               - [CATEGORY:프로세스/규정]
                - [CATEGORY:기타]
             """
             
@@ -308,11 +324,11 @@ else:
                 final_status = "처리완료"
                 clean_response = raw_response.replace("[INFO]", "").strip()
 
-            # ★ 요약 실행 (시트 기록용)
+            # 요약 실행
             summary_q = summarize_text(prompt)
             summary_a = summarize_text(clean_response)
 
-            # 시트에 저장 (요약된 내용 사용)
+            # 시트에 저장
             save_to_sheet(user['dept'], user['name'], user['rank'], category, summary_q, summary_a, final_status)
 
             full_response = clean_response + "\n\n**더 이상의 민원은 없으실까요?**"
