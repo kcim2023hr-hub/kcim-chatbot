@@ -12,10 +12,9 @@ st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢")
 st.title("🤖 KCIM 사내 민원/문의 챗봇")
 
 # --------------------------------------------------------------------------
-# [1] 데이터 로드 (보안 및 업무 분장 데이터)
+# [1] 데이터 로드 (임직원 정보 및 업무 분장)
 # --------------------------------------------------------------------------
 
-# 1-1. 임직원 DB 로드 (members.xlsx 기반)
 @st.cache_data
 def load_employee_db():
     file_name = 'members.xlsx' 
@@ -29,18 +28,21 @@ def load_employee_db():
                 try:
                     name = str(row['이름']).strip()
                     phone = str(row['휴대폰 번호']).strip()
-                    pw = re.sub(r'[^0-9]', '', phone)[-4:] # 휴대폰 뒷 4자리
+                    pw = re.sub(r'[^0-9]', '', phone)[-4:]
                     db[name] = {"pw": pw, "dept": row['부서'], "rank": row['직급']}
-                except: continue
+                except:
+                    continue
+        except:
+            pass
     return db
 
 EMPLOYEE_DB = load_employee_db()
 
-# 1-2. 업무 분장표 데이터 (챗봇 학습용)
+# 업무 분장표 데이터
 WORK_DISTRIBUTION = """
 [KCIM 경영관리본부 업무 분장표]
 - 이경한 매니저: 시설 관리(사옥/법인차량), 숙소 관리(계약/관리/종료), 근태 관리(지각/연차/휴가), 행사 기획/실행, 제증명 발급(재직/퇴직/경력), 출장(쏘카/숙박), 현장 관리 등
-- 김병찬 매니저: 전체 공지(제도), 취업규칙, 평가보상, 계약서 검토
+- 김병찬 매니저: 제도 공지, 취업규칙, 평가보상, 계약서 검토
 - 백다영 매니저: 교육(리더/법정), 채용(공고/면접), 입퇴사 안내, 양식 변경
 - 김승민 매니저: 품의서 관리, 비용 처리(법인카드), 지출결의서, 신용평가서
 - 안하련 매니저: 급여 서류(원천징수영수증), 품의 금액 송금
@@ -55,7 +57,7 @@ try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
     google_secrets = st.secrets["google_sheets"]
 except Exception as e:
-    st.error(f"⚠️ 설정(Secrets) 오류가 발생했습니다. 확인 부탁드립니다.")
+    st.error("⚠️ Secrets 설정 오류가 발생했습니다.")
     st.stop()
 
 def save_to_sheet(dept, name, rank, category, question, answer):
@@ -63,12 +65,13 @@ def save_to_sheet(dept, name, rank, category, question, answer):
         scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
         creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(google_secrets), scope)
         gc = gspread.authorize(creds)
-        # 매니저님의 시트 URL
+        # 구글 시트 URL
         sh = gc.open_by_url("https://docs.google.com/spreadsheets/d/1jckiUzmefqE_PiaSLVHF2kj2vFOIItc3K86_1HPWr_4/edit")
         sheet = sh.worksheet("응답시트")
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         sheet.append_row([now, dept, name, rank, category, question, answer])
-    except: pass
+    except:
+        pass
 
 # --------------------------------------------------------------------------
 # [3] UI 및 메인 로직
@@ -87,7 +90,8 @@ if not st.session_state["logged_in"]:
                 st.session_state["user_info"] = EMPLOYEE_DB[name]
                 st.session_state["user_info"]["name"] = name
                 st.rerun()
-            else: st.error("정보가 일치하지 않습니다.")
+            else:
+                st.error("정보가 일치하지 않습니다.")
 else:
     user = st.session_state["user_info"]
     with st.sidebar:
@@ -98,31 +102,31 @@ else:
             st.rerun()
 
     if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "assistant", "content": f"안녕하세요, {user['name']}님! 😊 사내 규정이나 업무 담당자에 대해 궁금한 점을 물어보세요."}]
+        st.session_state.messages = [{"role": "assistant", "content": f"반갑습니다 {user['name']}님! 😊 무엇을 도와드릴까요?"}]
 
     for msg in st.session_state.messages:
         st.chat_message(msg["role"]).write(msg["content"])
 
-    if prompt := st.chat_input("질문을 입력하세요..."):
+    if prompt := st.chat_input("질문을 입력하세요"):
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.chat_message("user").write(prompt)
 
-        # 시스템 지침 (성함 언급 금지 및 상담 번호 02-772-5806 반영)
+        # 시스템 지침 (성함 언급 지양 및 정중한 표현)
         sys_instr = f"""너는 KCIM의 HR AI 매니저야.
         1. 상담 안내 번호는 02-772-5806으로 안내해.
-        2. 답변 시 절대 담당자의 성함(이경한 등)만 언급하지 말고 'OOO 매니저'라고 정중히 표현해.
+        2. 답변 시 특정 담당자를 지칭할 때는 반드시 'OOO 매니저'라고 정중히 표현해.
         3. 아래 [업무 분장표]를 참고해서 담당자를 안내해줘:
         {WORK_DISTRIBUTION}
-        4. 이경한 매니저의 담당 업무라면 'HR팀 이경한 매니저에게 문의바랍니다.'라고 명확히 안내해.
-        5. 답변 마지막에 [CATEGORY:분류]를 달아줘. (분류: 인사, 복지, 시설, 기타 중 선택)
+        4. 이경한 매니저의 담당 업무라면 'HR팀 이경한 매니저에게 문의바랍니다.'라고 안내해.
+        5. 답변 마지막에 [CATEGORY:분류] 태그를 달아줘. (분류: 인사, 복지, 시설, 기타 중 선택)
         """
         
         response = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "system", "content": sys_instr}, {"role": "user", "content": prompt}])
         ans = response.choices[0].message.content
         
         # 카테고리 추출 및 시트 기록
-        cat = re.search(r'\[CATEGORY:(.*?)\]', ans)
-        cat_str = cat.group(1) if cat else "기타"
+        cat_match = re.search(r'\[CATEGORY:(.*?)\]', ans)
+        cat_str = cat_match.group(1) if cat_match else "기타"
         save_to_sheet(user['dept'], user['name'], user['rank'], cat_str, prompt, ans)
 
         st.session_state.messages.append({"role": "assistant", "content": ans})
