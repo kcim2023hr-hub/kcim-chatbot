@@ -6,8 +6,8 @@ from datetime import datetime
 import traceback
 
 # 1. 페이지 설정
-st.set_page_config(page_title="KICM 민원 챗봇", page_icon="🤖")
-st.title("🤖 KICM 사내 민원/문의 챗봇")
+st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🤖")
+st.title("🤖 KCIM 사내 민원/문의 챗봇")
 st.markdown("---")
 
 # 2. 비밀번호(Secrets) 불러오기
@@ -63,7 +63,7 @@ if prompt := st.chat_input("질문을 입력하세요"):
 
     response = ""
     try:
-        system_instruction = "너는 KICM의 HR 매니저야. 모르는 내용은 '담당자 확인 후 처리해 드리겠습니다'라고 답하고 끝에 [민원접수]라고 붙여."
+        system_instruction = "너는 KCIM의 민원챗봇이야. 모르는 내용은 '담당자 확인 후 처리해 드리겠습니다'라고 답하고 끝에 [민원접수]라고 붙여."
         
         completion = client.chat.completions.create(
             model="gpt-3.5-turbo",
