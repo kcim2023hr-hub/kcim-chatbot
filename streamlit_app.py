@@ -6,16 +6,17 @@ from datetime import datetime
 import pandas as pd
 import time
 import os
+import re
 
 # 1. 페이지 설정
 st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢")
 st.title("🤖 KCIM 사내 민원/문의 챗봇")
 
 # --------------------------------------------------------------------------
-# [1] 직원 데이터베이스 로드 (엑셀 파일 자동 연동)
+# [1] 직원 데이터베이스 로드 (새로 올린 파일 연동)
 # 파일명: 구성원(정상)__20260115121840.xlsx - 구성원(정상).csv
 # --------------------------------------------------------------------------
-@st.cache_data  # 매번 파일을 다시 읽지 않도록 캐싱하여 속도 향상
+@st.cache_data
 def load_employee_db():
     # 업로드해주신 파일명 (정확해야 합니다)
     file_name = '구성원(정상)__20260115121840.xlsx - 구성원(정상).csv'
@@ -27,26 +28,30 @@ def load_employee_db():
 
     if os.path.exists(file_name):
         try:
-            # CSV 파일 읽기 (한글 깨짐 방지 처리)
+            # CSV 파일 읽기
+            # 1. utf-8로 먼저 시도하고, 실패하면 cp949(한글 윈도우)로 시도
             try:
                 df = pd.read_csv(file_name)
             except UnicodeDecodeError:
                 df = pd.read_csv(file_name, encoding='cp949')
             
             # 데이터 정제 및 DB 구축
-            # 엑셀 헤더: [이름, 부서, 직급, 휴대폰 번호] 컬럼 사용
+            # 새 파일 헤더: [이름, 부서, 직급, 휴대폰 번호]
             for _, row in df.iterrows():
+                # 데이터가 비어있을 수 있으므로 문자열로 변환 후 공백 제거
                 name = str(row['이름']).strip()
                 dept = str(row['부서']).strip()
                 rank = str(row['직급']).strip()
                 phone = str(row['휴대폰 번호']).strip()
                 
-                # 휴대폰 번호에서 숫자만 추출하여 뒷 4자리 비밀번호 생성
-                phone_digits = ''.join(filter(str.isdigit, phone))
+                # 휴대폰 번호에서 숫자만 추출 ('-' 제거)
+                phone_digits = re.sub(r'[^0-9]', '', phone)
+                
+                # 뒷 4자리를 비밀번호로 사용
                 if len(phone_digits) >= 4:
                     pw = phone_digits[-4:]
                 else:
-                    pw = "0000" # 번호가 없을 경우 기본값
+                    pw = "0000" # 번호가 없거나 짧으면 0000
                 
                 # DB에 저장
                 db[name] = {
@@ -56,8 +61,9 @@ def load_employee_db():
                 }
         except Exception as e:
             st.error(f"직원 명단 파일 로드 중 오류 발생: {e}")
+            st.write("오류 상세:", e)
     else:
-        st.warning(f"⚠️ '{file_name}' 파일을 찾을 수 없습니다. 관리자 계정으로만 접속 가능합니다.")
+        st.warning(f"⚠️ '{file_name}' 파일을 찾을 수 없습니다. (GitHub에 업로드되었는지 확인해주세요)")
         
     return db
 
@@ -129,7 +135,7 @@ def login():
                         "name": input_name,
                         "rank": user_data["rank"]
                     }
-                    st.success(f"{input_name} {user_data['rank']}님(소속: {user_data['dept']}), 환영합니다!")
+                    st.success(f"{input_name} {user_data['rank']}님, 환영합니다!")
                     time.sleep(1)
                     st.rerun()
                 else:
