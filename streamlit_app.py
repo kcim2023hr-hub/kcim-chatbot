@@ -23,11 +23,11 @@ st.markdown("""
     /* 2. 메인 콘텐츠 너비 제한 및 중앙 정렬 */
     .block-container {
         max-width: 750px !important;
-        padding-top: 4rem !important;
-        padding-bottom: 4rem !important;
+        padding-top: 3rem !important; /* 상단 여백 조절 */
+        padding-bottom: 3rem !important;
     }
 
-    /* 3. 카드형 박스 스타일 (중앙 정렬 및 부유 효과) */
+    /* 3. 카드형 박스 스타일 */
     .custom-card {
         background-color: #ffffff;
         padding: 40px;
@@ -38,7 +38,7 @@ st.markdown("""
         text-align: center;
     }
 
-    /* 4. 사이드바 디자인 (대시보드 형태) */
+    /* 4. 사이드바 디자인 */
     section[data-testid="stSidebar"] {
         background-color: #ffffff !important;
         border-right: 1px solid #dee2e6;
@@ -58,7 +58,6 @@ st.markdown("""
         border: 1px solid #eee;
         margin-bottom: 8px;
         font-size: 14px;
-        transition: all 0.2s;
     }
 
     /* 5. 텍스트 스타일링 */
@@ -111,7 +110,7 @@ def load_data():
     for file_name in os.listdir('.'):
         if "org" in file_name.lower() or "조직도" in file_name.lower():
             try:
-                with open(file_name, 'r', encoding='utf-8') as f: org_text += f.read()  + "\n"
+                with open(file_name, 'r', encoding='utf-8') as f: org_text += f.read() + "\n"
             except:
                 with open(file_name, 'r', encoding='cp949') as f: org_text += f.read() + "\n"
         elif "intranet" in file_name.lower() and file_name.endswith('.txt'):
@@ -135,10 +134,9 @@ def load_data():
 
 ORG_CHART_DATA, COMPANY_RULES, INTRANET_GUIDE = load_data()
 
-# 업무 분장표 데이터 [cite: 2026-01-02]
 WORK_DISTRIBUTION = """
 [경영관리본부 업무 분장표]
-- 이경한 매니저: 사옥/법인차량 관리, 현장 숙소 관리, 근태 관리, 행사 기획/실행, 임직원 제도 수립 [cite: 2026-01-02]
+- 이경한 매니저: 사옥/법인차량 관리, 현장 숙소 관리, 근태 관리, 행사 기획/실행, 임직원 제도 수립
 - 김병찬 매니저: 제도 공지, 위임전결, 취업규칙, 평가보상
 - 백다영 매니저: 교육, 채용, 입퇴사 안내
 - 김승민 책임: 품의서 관리, 세금계산서, 법인카드 비용처리, 숙소 비용 집행
@@ -160,14 +158,10 @@ except Exception as e:
     st.stop()
 
 def get_dynamic_greeting():
-    """접속 시간에 따른 인사말 생성"""
     hour = datetime.now().hour
-    if 5 <= hour < 12:
-        return "좋은 아침입니다! 오늘도 활기차게 시작해볼까요?"
-    elif 12 <= hour < 18:
-        return "즐거운 오후입니다. 업무 중에 궁금한 점이 있으신가요?"
-    else:
-        return "오늘 하루도 고생 많으셨습니다. 마무리하며 도와드릴 일이 있을까요?"
+    if 5 <= hour < 12: return "좋은 아침입니다! 오늘도 활기차게 시작해볼까요?"
+    elif 12 <= hour < 18: return "즐거운 오후입니다. 업무 중에 궁금한 점이 있으신가요?"
+    else: return "오늘 하루도 고생 많으셨습니다. 마무리하며 도와드릴 일이 있을까요?"
 
 def save_to_sheet(dept, name, rank, category, question, answer, status):
     try:
@@ -192,12 +186,10 @@ if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 
 # [로그인 화면]
 if not st.session_state["logged_in"]:
-    # 흰색 카드형 박스 시작
+    # 빈 박스 제거를 위해 조건문 외부의 마크다운은 CSS 설정만 남기고 모두 정리했습니다.
     st.markdown("<div class='custom-card'>", unsafe_allow_html=True)
-    
-    # [수정] 박스 내부에 타이틀 삽입 및 문구 변경
-    st.markdown("<h2 style='text-align: center; color: #1a1c1e; margin-bottom: 25px;'>🏢 KCIM 임직원 민원 챗봇</h2>", unsafe_allow_html=True)
-    
+    # 타이틀을 흰색 박스 최상단에 배치
+    st.markdown("<h2 style='text-align: center; color: #333; margin-bottom: 20px;'>🏢 KCIM 임직원 민원 챗봇</h2>", unsafe_allow_html=True)
     st.subheader("🔒 임직원 신원확인")
     with st.form("login_form"):
         input_name = st.text_input("성명", placeholder="이름을 입력하세요")
@@ -214,8 +206,6 @@ if not st.session_state["logged_in"]:
 # [챗봇 메인 화면]
 else:
     user = st.session_state["user_info"]
-    
-    # --- 좌측 사이드바 (정보 대시보드) ---
     with st.sidebar:
         st.markdown("<h2 style='text-align: center; color: #E74C3C;'>🏢 KCIM</h2>", unsafe_allow_html=True)
         st.markdown("---")
@@ -237,9 +227,7 @@ else:
             st.session_state.clear()
             st.rerun()
 
-    # --- 메인 채팅창 (카드형 웰컴 인사) ---
     if "messages" not in st.session_state:
-        # 시간대별 맞춤 인사말 적용
         dynamic_subtitle = get_dynamic_greeting()
         greeting_html = f"""
         <div class='custom-card'>
@@ -249,7 +237,6 @@ else:
         """
         st.session_state["messages"] = [{"role": "assistant", "content": greeting_html, "is_html": True}]
     
-    # 메시지 표시 및 채팅 입력 로직
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             if msg.get("is_html"): st.markdown(msg["content"], unsafe_allow_html=True)
@@ -259,17 +246,14 @@ else:
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.write(prompt)
 
-        # 시스템 지침 및 답변 생성
-        system_instruction = f""" 너는 1990년 창립된 KCIM의 전문 HR 매니저야 [cite: 2026-01-02]. {user['name']}님에게 정중하게 답변해줘. [사내 데이터] {ORG_CHART_DATA} {COMPANY_RULES} {INTRANET_GUIDE} {WORK_DISTRIBUTION} [원칙] 1. 번호: 02-772-5806. 2. 호칭: 성함+매니저/책임. 3. 시설/차량/숙소: 이경한 매니저 안내 및 [ACTION] 태그. 4. 태그: [CATEGORY:분류명] (이미지 카테고리 활용) """
+        system_instruction = f""" 너는 1990년 창립된 KCIM의 전문 HR 매니저야. {user['name']}님에게 정중하게 답변해줘. [사내 데이터] {ORG_CHART_DATA} {COMPANY_RULES} {INTRANET_GUIDE} {WORK_DISTRIBUTION} [원칙] 1. 번호: 02-772-5806. 2. 호칭: 성함+매니저/책임. 3. 시설/차량/숙소: 이경한 매니저 안내 및 [ACTION] 태그. 4. 태그: [CATEGORY:분류명] """
         
         try:
             completion = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "system", "content": system_instruction}, {"role": "user", "content": prompt}])
             raw_response = completion.choices[0].message.content
-            
             category = re.search(r'\[CATEGORY:(.*?)\]', raw_response).group(1) if "[CATEGORY:" in raw_response else "기타"
             final_status = "담당자확인필요" if "[ACTION]" in raw_response else "처리완료"
             clean_ans = raw_response.replace("[ACTION]", "").replace(f"[CATEGORY:{category}]", "").strip()
-            
             save_to_sheet(user['dept'], user['name'], user['rank'], category, summarize_text(prompt), summarize_text(clean_ans), final_status)
             full_response = clean_ans + f"\n\n**{user['name']}님, 다른 문의 사항이 더 있으실까요?**"
             st.session_state.messages.append({"role": "assistant", "content": full_response})
