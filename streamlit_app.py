@@ -23,7 +23,7 @@ def load_employee_db():
     file_name = 'members.xlsx' 
     db = {}
     
-    # ★ 관리자 비밀번호 변경 (1234 -> 1323)
+    # 비상용 관리자 계정
     db["관리자"] = {"pw": "1323", "dept": "HR팀", "rank": "매니저"}
 
     if os.path.exists(file_name):
@@ -38,12 +38,21 @@ def load_employee_db():
                     rank = str(row['직급']).strip()
                     phone = str(row['휴대폰 번호']).strip()
                     phone_digits = re.sub(r'[^0-9]', '', phone)
+                    
+                    # 일반 직원은 휴대폰 뒷 4자리
                     pw = phone_digits[-4:] if len(phone_digits) >= 4 else "0000"
+                    
                     db[name] = {"pw": pw, "dept": dept, "rank": rank}
                 except:
                     continue
+            
+            # ★ [중요] 이경한 매니저님 비밀번호 강제 변경 (휴대폰 번호 무시)
+            if "이경한" in db:
+                db["이경한"]["pw"] = "1323"
+
         except Exception as e:
             st.error(f"❌ 엑셀 파일 읽기 실패: {e}")
+            
     return db
 
 EMPLOYEE_DB = load_employee_db()
@@ -155,6 +164,9 @@ if not st.session_state["logged_in"]:
 else:
     user = st.session_state["user_info"]
     
+    # ----------------------------------------------------------------------
+    # [사이드바] 사용자 정보 및 관리자용 메뉴
+    # ----------------------------------------------------------------------
     with st.sidebar:
         st.markdown(f"👤 **{user['name']} {user['rank']}**")
         st.markdown(f"🏢 **{user['dept']}**")
@@ -162,15 +174,38 @@ else:
             st.session_state.clear()
             st.rerun()
         
-        # 관리자용 디버그
+        # 관리자 전용 기능 (이경한, 관리자)
         if user['name'] in ["이경한", "관리자"]:
             st.divider()
-            with st.expander("🛠️ 데이터 읽기 상태 확인"):
-                st.write("✅ [1] 조직도 데이터 (앞부분)")
-                st.text(ORG_CHART_DATA[:300])
-                st.write("✅ [2] 규정/업무분장 데이터 (앞부분)")
-                st.text(COMPANY_RULES[:300])
+            st.markdown("### 🛠️ 관리자 도구")
+            
+            # 1. 파일 트리 보기
+            with st.expander("📂 시스템 파일 현황", expanded=False):
+                all_files = sorted(os.listdir('.'))
+                pdfs = [f for f in all_files if f.lower().endswith('.pdf')]
+                txts = [f for f in all_files if f.lower().endswith('.txt') and f != 'requirements.txt']
+                excels = [f for f in all_files if f.lower().endswith(('.xlsx', '.csv'))]
+                
+                if pdfs:
+                    st.markdown("**📄 규정 문서 (PDF)**")
+                    for f in pdfs: st.caption(f"- {f}")
+                if txts:
+                    st.markdown("**📝 텍스트 데이터 (TXT)**")
+                    for f in txts: st.caption(f"- {f}")
+                if excels:
+                    st.markdown("**📊 엑셀 데이터 (XLSX/CSV)**")
+                    for f in excels: st.caption(f"- {f}")
 
+            # 2. 데이터 읽기 상태 확인
+            with st.expander("👀 데이터 로드 상태 확인", expanded=False):
+                st.write("✅ [1] 조직도 데이터 (앞부분)")
+                st.text(ORG_CHART_DATA[:150] + "...")
+                st.write("✅ [2] 규정/업무분장 (앞부분)")
+                st.text(COMPANY_RULES[:150] + "...")
+
+    # ----------------------------------------------------------------------
+    # [메인 화면] 챗봇 인터페이스
+    # ----------------------------------------------------------------------
     st.markdown(f"### 👋 안녕하세요, {user['name']} {user['rank']}님!")
 
     if "messages" not in st.session_state:
