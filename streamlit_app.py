@@ -15,14 +15,14 @@ st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢")
 st.title("🤖 KCIM 사내 민원/문의 챗봇")
 
 # --------------------------------------------------------------------------
-# [1] 데이터 로드 (전화번호 02-772-5806 반영)
+# [1] 데이터 로드 (02-772-5806 반영 및 문법 오류 수정)
 # --------------------------------------------------------------------------
 
 @st.cache_data
 def load_employee_db():
     file_name = 'members.xlsx' 
     db = {}
-    # 관리자 정보 및 전화번호 업데이트
+    # 요청하신 전화번호로 업데이트 완료 (02-772-5806)
     db["관리자"] = {"pw": "1323", "dept": "HR팀", "rank": "매니저", "tel": "02-772-5806"}
     if os.path.exists(file_name):
         try:
@@ -48,12 +48,21 @@ EMPLOYEE_DB = load_employee_db()
 def load_data():
     org_text, general_rules, intranet_guide = "", "", ""
     for file_name in os.listdir('.'):
+        # [문법 오류 수정 완료] try와 with 문을 개별 라인으로 분리하여 syntax error 방지
         if "org" in file_name.lower() or "조직도" in file_name.lower():
-            try: with open(file_name, 'r', encoding='utf-8') as f: org_text += f.read() + "\n"
-            except: with open(file_name, 'r', encoding='cp949') as f: org_text += f.read() + "\n"
+            try:
+                with open(file_name, 'r', encoding='utf-8') as f:
+                    org_text += f.read() + "\n"
+            except:
+                with open(file_name, 'r', encoding='cp949') as f:
+                    org_text += f.read() + "\n"
         elif "intranet" in file_name.lower() and file_name.endswith('.txt'):
-            try: with open(file_name, 'r', encoding='utf-8') as f: intranet_guide += f.read() + "\n"
-            except: with open(file_name, 'r', encoding='cp949') as f: intranet_guide += f.read() + "\n"
+            try:
+                with open(file_name, 'r', encoding='utf-8') as f:
+                    intranet_guide += f.read() + "\n"
+            except:
+                with open(file_name, 'r', encoding='cp949') as f:
+                    intranet_guide += f.read() + "\n"
         elif file_name.lower().endswith('.pdf'):
             try:
                 reader = PyPDF2.PdfReader(file_name)
@@ -62,8 +71,12 @@ def load_data():
                     if extracted: general_rules += extracted + "\n"
             except: pass
         elif file_name.lower().endswith('.txt') and file_name != "requirements.txt":
-            try: with open(file_name, 'r', encoding='utf-8') as f: general_rules += f.read() + "\n"
-            except: with open(file_name, 'r', encoding='cp949') as f: general_rules += f.read() + "\n"
+            try:
+                with open(file_name, 'r', encoding='utf-8') as f:
+                    general_rules += f.read() + "\n"
+            except:
+                with open(file_name, 'r', encoding='cp949') as f:
+                    general_rules += f.read() + "\n"
     return org_text, general_rules, intranet_guide
 
 ORG_CHART_DATA, COMPANY_RULES, INTRANET_GUIDE = load_data()
@@ -91,7 +104,7 @@ def save_to_sheet(dept, name, rank, category, question, answer, status):
 def send_flow_alert(category, question, name, dept):
     if not flow_secrets: return
     api_key = flow_secrets.get("api_key")
-    room_code = flow_secrets.get("flow_room_code")
+    room_code = flow_secrets.get("flow_room_code", "BFLOW_211214145658")
     if not room_code: return
 
     headers = {"Content-Type": "application/json", "x-flow-api-key": api_key}
@@ -101,8 +114,16 @@ def send_flow_alert(category, question, name, dept):
     try:
         url = "https://api.flow.team/v1/projects/posts"
         payload = {"project_code": room_code, "title": "🤖 챗봇 민원 접수", "body": content}
-        requests.post(url, json=payload, headers=headers, timeout=5)
-        st.toast("✅ Flow 알림 시도 완료")
+        res = requests.post(url, json=payload, headers=headers, timeout=5)
+        if res.status_code == 200:
+            st.toast("✅ Flow 알림 성공")
+            return
+    except: pass
+
+    # 게시글 실패 시 메시지 전송 시도
+    try:
+        url = "https://api.flow.team/v1/messages/room"
+        requests.post(url, json={"room_code": room_code, "content": content}, headers=headers, timeout=5)
     except: pass
 
 # --------------------------------------------------------------------------
@@ -115,7 +136,7 @@ if not st.session_state["logged_in"]:
     st.header("🔒 임직원 신원 확인")
     with st.form("login"):
         name_input = st.text_input("성명")
-        pw_input = st.text_input("비밀번호", type="password")
+        pw_input = st.text_input("비밀번호 (휴대폰 뒷 4자리)", type="password")
         if st.form_submit_button("접속"):
             if name_input in EMPLOYEE_DB and EMPLOYEE_DB[name_input]["pw"] == pw_input:
                 st.session_state["logged_in"] = True
@@ -137,14 +158,15 @@ else:
             if st.button("🚀 플로우 연동 상태 정밀 점검"):
                 st.session_state["show_debug"] = True
 
-    # --- 디버그 모드 출력 ---
+            with st.expander("📂 시스템 파일 현황"):
+                for f in os.listdir('.'):
+                    if f.endswith(('.pdf', '.txt')) and f != 'requirements.txt': st.caption(f"- {f}")
+
     if st.session_state.get("show_debug"):
         st.info("🔍 플로우 API 응답 테스트 중...")
         try:
-            headers = {"x-flow-api-key": flow_secrets["api_key"]}
-            res = requests.get("https://api.flow.team/v1/projects", headers=headers)
-            st.write(f"상태 코드: {res.status_code}")
-            st.json(res.json()) # 전체 응답을 보여줌으로써 원인 파악
+            res = requests.get("https://api.flow.team/v1/projects", headers={"x-flow-api-key": flow_secrets["api_key"]})
+            st.json(res.json())
         except Exception as e: st.error(f"오류: {e}")
         if st.button("닫기"): 
             st.session_state["show_debug"] = False
@@ -153,7 +175,7 @@ else:
     st.markdown(f"### 👋 안녕하세요, {user['name']} {user.get('rank','')}님!")
     
     if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "assistant", "content": "반갑습니다! 👋 **복지, 규정, 불편사항** 등 궁금한 점을 물어보세요."}]
+        st.session_state.messages = [{"role": "assistant", "content": "반갑습니다! 👋 **복지, 규정, 불편사항, 시설 이용** 등 궁금한 점을 물어보세요."}]
 
     for msg in st.session_state.messages: st.chat_message(msg["role"]).write(msg["content"])
 
