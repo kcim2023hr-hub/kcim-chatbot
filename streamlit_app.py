@@ -83,7 +83,7 @@ def check_finish_intent(user_input):
         completion = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "사용자가 '네, 없습니다', '종료', '끝' 등의 의미로 말하면 'FINISH', '아니요', '질문 더 있어요' 등의 의미면 'CONTINUE'라고 답해."},
+                {"role": "system", "content": "사용자가 '네, 없습니다', '종료', '끝', '아니요(더 질문없다는 의미)' 등의 의미로 말하면 'FINISH', '질문 더 있어요', '잠시만요' 등의 의미면 'CONTINUE'라고 답해."},
                 {"role": "user", "content": user_input}
             ],
             temperature=0
@@ -170,28 +170,23 @@ else:
                 st.session_state["temp_log"] = {}
                 
             else:
-                # 사용자가 "아니요, 더 있어요" 선택 -> 이전 건은 일단 저장하고 계속 진행
+                # 사용자가 "아니요, 더 있어요" 선택 -> 이전 건은 저장하되, 새로운 질문으로 간주하고 계속 진행
                 save_to_sheet(user['dept'], user['name'], user['rank'], last_q, last_a, last_status)
                 
-                # 이번 입력이 '질문'일 수도 있으므로 바로 답변 생성 로직으로 넘기기 위해
-                # 단순 플래그 해제만 하고 아래 [CASE 2] 로직을 타게 하거나,
-                # 여기서는 "네, 어떤 점이 더 궁금하신가요?"라고 묻고 끝낼 수도 있습니다.
-                # (매니저님 요청: 바로 질문에 답하는게 자연스러우므로 아래 로직을 호출하거나 재실행 필요)
-                # 여기서는 간단히 '새로운 질문'으로 간주하고 바로 답변 생성으로 넘어가겠습니다.
+                # 상태 해제 후 아래 [CASE 2] 로직을 타게 함 (바로 답변 생성)
                 st.session_state["awaiting_confirmation"] = False
-                # (아래 코드가 이어지면서 처리됨)
 
         # [CASE 2] 일반 질문 처리 (확인 대기 상태가 아니거나, "더 있어요"라고 한 뒤)
         if not st.session_state["awaiting_confirmation"]:
-            # AI 시스템 프롬프트 (가장 중요한 부분!)
+            # AI 시스템 프롬프트 (여기가 핵심!)
             system_instruction = """
             너는 KCIM의 HR/총무 AI 매니저야.
             임직원 질문에 대해 규정에 따라 답변하되, 질문의 성격에 따라 답변 맨 앞에 태그를 붙여야 해.
             
             [태그 규칙]
-            1. [ACTION]: 시설 고장, 수리 요청, 현장 확인이 필요한 민원, 혹은 네가 해결 불가능한 문제.
+            1. [ACTION]: 시설 고장, 수리 요청, 청소, 비품 파손 등 현장 확인이나 물리적 조치가 필요한 경우.
                - 답변 예시: "[ACTION] 접수되었습니다. 시설 담당자가 현장을 확인하고 조치하겠습니다."
-            2. [INFO]: 단순 규정 문의, 절차 안내, 정보 제공 등 AI가 답변으로 해결 가능한 경우.
+            2. [INFO]: 단순 규정 문의, 절차 안내, 정보 제공 등 말이나 텍스트로 해결 가능한 경우.
                - 답변 예시: "[INFO] 법인차량은 그룹웨어에서 신청 가능하며, 키는 3층에서 수령합니다."
             
             [사내 규정 데이터]
@@ -212,10 +207,10 @@ else:
 
             # 태그 분석 및 처리결과 결정
             if "[ACTION]" in raw_response:
-                final_status = "담당자확인필요"
+                final_status = "담당자확인필요"  # 물리적 조치가 필요한 경우
                 clean_response = raw_response.replace("[ACTION]", "").strip()
             else:
-                final_status = "처리완료"
+                final_status = "처리완료"      # AI 선에서 해결된 경우
                 clean_response = raw_response.replace("[INFO]", "").strip()
 
             # 답변 출력 (태그 뗀 버전)
