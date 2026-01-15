@@ -9,17 +9,16 @@ import os
 import re
 import PyPDF2
 
-# 1. 페이지 설정: 중앙 정렬 레이아웃 고정
+# 1. 페이지 설정
 st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢", layout="centered")
 
-# --- UI 고정 및 가독성 극대화 커스텀 CSS ---
+# --- UI 고정 및 상담 집중 모드 커스텀 CSS ---
 st.markdown("""
     <style>
-    /* 전체 배경 및 레이아웃 */
     .stApp { background-color: #f4f7f9; }
     .block-container { max-width: 800px !important; padding-top: 5rem !important; }
 
-    /* [로그인 화면] 폼 카드 스타일링 */
+    /* [로그인 화면] */
     div[data-testid="stForm"] {
         background-color: #ffffff !important;
         padding: 50px !important;
@@ -29,10 +28,9 @@ st.markdown("""
         text-align: center;
     }
 
-    /* 파란색 안내 박스 가독성 최적화 */
+    /* 가독성 최적화 안내 박스 */
     div[data-testid="stNotification"] {
         font-size: 17px !important;
-        font-weight: 500 !important;
         line-height: 1.6 !important;
         background-color: #f0f7ff !important;
         border-radius: 12px !important;
@@ -40,7 +38,7 @@ st.markdown("""
         padding: 20px !important;
     }
 
-    /* 사이드바 스타일링 및 개별 박스 처리 */
+    /* [사이드바] 버튼 스타일링 */
     section[data-testid="stSidebar"] { background-color: #ffffff !important; border-right: 1px solid #dee2e6; }
     
     .sidebar-user-box {
@@ -52,7 +50,7 @@ st.markdown("""
         text-align: center;
     }
 
-    /* [핵심] 카테고리 버튼 내 제목과 내용의 명확한 시각적 구분 */
+    /* 카테고리 버튼 시각적 구분 */
     div[data-testid="stSidebar"] .stButton > button {
         background-color: #ffffff !important;
         border: 1px solid #e9ecef !important;
@@ -61,10 +59,7 @@ st.markdown("""
         width: 100% !important;
         box-shadow: 0 2px 5px rgba(0,0,0,0.03) !important;
         margin-bottom: -5px !important;
-        transition: all 0.2s ease !important;
     }
-
-    /* 버튼 텍스트 전체 스타일 (내용/설명 부분) */
     div[data-testid="stSidebar"] .stButton > button div[data-testid="stMarkdownContainer"] p {
         font-size: 13px !important;
         color: #666 !important;
@@ -73,20 +68,21 @@ st.markdown("""
         text-align: left !important;
         margin: 0 !important;
     }
-
-    /* 버튼 첫 번째 줄 (민원구분/제목) 스타일 강제 변경 */
     div[data-testid="stSidebar"] .stButton > button div[data-testid="stMarkdownContainer"] p::first-line {
         font-size: 16px !important;
         font-weight: 700 !important;
         color: #1a1c1e !important;
     }
 
-    div[data-testid="stSidebar"] .stButton > button:hover {
-        border-color: #28a745 !important;
-        background-color: #f8fff9 !important;
+    /* 비활성화된 버튼 스타일 */
+    div[data-testid="stSidebar"] .stButton > button:disabled {
+        background-color: #f0f0f0 !important;
+        color: #aaa !important;
+        border-color: #ddd !important;
+        cursor: not-allowed !important;
     }
 
-    /* [메인화면] 플랫 디자인 인사말 */
+    /* [메인화면] 웰컴 메시지 */
     .greeting-container { text-align: center; margin-bottom: 45px; padding: 25px 0; }
     .greeting-title { font-size: 38px !important; font-weight: 800; color: #1a1c1e; margin-bottom: 15px; }
     .greeting-subtitle { font-size: 23px !important; color: #555; }
@@ -94,7 +90,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------------
-# [1] 데이터 로드 로직 (Saved Info 반영)
+# [1] 데이터 로드 및 카테고리 설정
 # --------------------------------------------------------------------------
 
 @st.cache_data
@@ -114,33 +110,38 @@ def load_employee_db():
 
 EMPLOYEE_DB = load_employee_db()
 
-# 업무 분장 데이터 (이경한 매니저: 시설/차량/숙소/근태 관리)
-WORK_DISTRIBUTION = """
-- 이경한 매니저: 사옥/법인차량 관리, 현장 숙소 관리, 근태/연차/휴가 관리, 행사 기획/실행, 제증명 발급, 지출결의(출장/숙소), 간식구매 등
-- 기타 부서원: 제도 공지, 채용, 품의서 관리 등
-"""
+# 카테고리별 맞춤형 준비 멘트 설정
+CATEGORY_GREETINGS = {
+    "🛠️ 시설/수리": "시설 및 장비 수리가 필요하신가요? 어떤 부분에 도움이 필요하신지 말씀해 주세요. 🛠️",
+    "👤 입퇴사/이동": "증명서 발급이나 인사 관련 문의가 있으시군요. 어떤 서류나 절차가 궁금하신가요? 👤",
+    "📋 프로세스/규정": "규정이나 시스템 사용법에 대해 안내해 드릴게요. 무엇이 궁금하신가요? 📋",
+    "🎁 복지/휴가": "복지나 휴가 제도는 임직원의 소중한 권리입니다. 어떤 혜택에 대해 알고 싶으신가요? 🎁",
+    "📢 불편사항": "근무 중 불편한 점이 있으셨군요. 말씀해 주시면 신속히 확인하여 개선하도록 노력하겠습니다. 📢",
+    "💬 일반/기타": "기타 궁금하신 사항이나 업무 협조가 필요한 부분이 있다면 편하게 말씀해 주세요. 💬"
+}
 
 # --------------------------------------------------------------------------
-# [2] 유틸리티 및 시간대 인사말
-# --------------------------------------------------------------------------
-
-def get_dynamic_greeting():
-    hour = datetime.now().hour
-    if 5 <= hour < 12: return "좋은 아침입니다! 오늘도 활기차게 시작해볼까요? ☀️"
-    elif 12 <= hour < 18: return "즐거운 오후입니다. 업무 중에 궁금한 점이 있으신가요? ☕"
-    else: return "오늘 하루도 고생 많으셨습니다. 마무리하며 도와드릴 일이 있을까요? ✨"
-
-# --------------------------------------------------------------------------
-# [3] 메인 실행 로직
+# [2] 초기화 및 상태 관리
 # --------------------------------------------------------------------------
 if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 if "messages" not in st.session_state: st.session_state["messages"] = []
+if "inquiry_active" not in st.session_state: st.session_state["inquiry_active"] = False
+
+def reset_inquiry():
+    """상담 종료 후 상태 초기화"""
+    st.session_state["inquiry_active"] = False
+    st.session_state["messages"] = []
+    st.rerun()
+
+# --------------------------------------------------------------------------
+# [3] UI 실행 로직
+# --------------------------------------------------------------------------
 
 # [로그인 화면]
 if not st.session_state["logged_in"]:
     with st.form("login_form"):
-        st.markdown("<h2 style='text-align: center; color: #1a1c1e; margin-bottom: 10px;'>🏢 KCIM 임직원 민원 챗봇</h2>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center; font-weight: bold; color: #555; margin-bottom: 30px;'>🔒 임직원 신원확인</p>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center;'>🏢 KCIM 임직원 민원 챗봇</h2>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; font-weight: bold; color: #555;'>🔒 임직원 신원확인</p>", unsafe_allow_html=True)
         input_name = st.text_input("성명", placeholder="성함을 입력하세요")
         input_pw = st.text_input("비밀번호 (휴대폰 뒷 4자리)", type="password", placeholder="****")
         st.info("💡 민원 데이터 관리를 위해 해당 임직원 신원 확인을 요청드립니다.")
@@ -156,7 +157,7 @@ if not st.session_state["logged_in"]:
 else:
     user = st.session_state["user_info"]
     with st.sidebar:
-        st.markdown("<h2 style='text-align: center; color: #1a1c1e;'>🏢 KCIM</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center;'>🏢 KCIM</h2>", unsafe_allow_html=True)
         st.markdown(f"""
         <div class='sidebar-user-box'>
             <small style='color: #6c757d;'>인증된 사용자</small><br>
@@ -167,7 +168,7 @@ else:
         
         st.subheader("🚀 민원 카테고리")
         
-        # 상세 카테고리 (민원구분 및 내용 분리 반영)
+        # 상세 카테고리 구성
         cats = [
             ("🛠️ 시설/수리", "사옥·차량 유지보수, 장비 교체 및 수리 요청"),
             ("👤 입퇴사/이동", "재직증명서 발급, 인사 발령, 근무 확인 및 채용"),
@@ -177,22 +178,30 @@ else:
             ("💬 일반/기타", "단순 질의, 일반 업무 협조 및 기타 문의")
         ]
         
+        # [수정] 상담 중일 때 다른 버튼 비활성화 (Anti-Spam)
         for title, desc in cats:
-            # 제목과 내용 사이에 줄바꿈(\n)을 넣어 스타일을 구분합니다.
-            if st.button(f"{title}\n{desc}", key=title):
-                st.session_state.messages.append({"role": "user", "content": f"[{title}] 주제에 대해 문의하고 싶습니다."})
+            if st.button(f"{title}\n{desc}", key=title, disabled=st.session_state["inquiry_active"]):
+                st.session_state["inquiry_active"] = True
+                greeting = CATEGORY_GREETINGS.get(title, "무엇을 도와드릴까요?")
+                st.session_state.messages.append({"role": "assistant", "content": greeting})
+                st.rerun()
         
         st.markdown("---")
-        if st.button("🚪 안전하게 로그아웃", use_container_width=True):
+        # 상담 종료 버튼 추가
+        if st.session_state["inquiry_active"]:
+            if st.button("✅ 현재 상담 종료하기", use_container_width=True):
+                reset_inquiry()
+        
+        if st.button("🚪 로그아웃", use_container_width=True):
             st.session_state.clear()
             st.rerun()
 
-    # 메인 인삿말 (최초 접속 시 표시)
+    # 메인 인삿말 (상담 시작 전)
     if not st.session_state.messages:
         greeting_html = f"""
         <div class='greeting-container'>
             <p class="greeting-title">{user['name']} {user['rank']}님, 반갑습니다! 👋</p>
-            <p class="greeting-subtitle">{get_dynamic_greeting()}</p>
+            <p class="greeting-subtitle">복지, 규정, 시설 문의 등 무엇을 도와드릴까요?</p>
         </div>
         """
         st.markdown(greeting_html, unsafe_allow_html=True)
@@ -202,15 +211,14 @@ else:
         with st.chat_message(msg["role"]):
             st.write(msg["content"])
 
-    # 채팅 입력
+    # 채팅 입력 및 자동 답변
     if prompt := st.chat_input("문의 내용을 입력하세요"):
+        st.session_state["inquiry_active"] = True # 채팅 입력 시에도 버튼 잠금
         st.session_state.messages.append({"role": "user", "content": prompt})
-        st.rerun()
-
-    # 자동 답변 로직 (1990년 창립 KCIM 전문 HR 매니저 페르소나)
-    if st.session_state.messages and st.session_state.messages[-1]["role"] == "user":
-        # Autodesk Gold 파트너사 정체성 반영
-        system_instruction = f"너는 1990년 창립된 KCIM의 전문 HR 매니저야. {user['name']}님에게 정중히 답변해줘. 시설/차량/숙소는 이경한 매니저 안내(02-772-5806)."
+        
+        # 시스템 페르소나 적용
+        system_instruction = f"너는 1990년 창립된 KCIM의 HR 매니저야. {user['name']}님께 정중히 답변해줘."
+        
         try:
             client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
             completion = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "system", "content": system_instruction}] + st.session_state.messages)
