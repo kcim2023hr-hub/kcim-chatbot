@@ -15,14 +15,14 @@ st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢")
 st.title("🤖 KCIM 사내 민원/문의 챗봇")
 
 # --------------------------------------------------------------------------
-# [1] 데이터 로드 (02-772-5806 반영 및 문법 오류 수정)
+# [1] 데이터 로드 (02-772-5806 반영 및 Syntax Error 수정)
 # --------------------------------------------------------------------------
 
 @st.cache_data
 def load_employee_db():
     file_name = 'members.xlsx' 
     db = {}
-    # 요청하신 전화번호로 업데이트 완료 (02-772-5806)
+    # 전화번호 수정: 02-772-5806
     db["관리자"] = {"pw": "1323", "dept": "HR팀", "rank": "매니저", "tel": "02-772-5806"}
     if os.path.exists(file_name):
         try:
@@ -48,7 +48,7 @@ EMPLOYEE_DB = load_employee_db()
 def load_data():
     org_text, general_rules, intranet_guide = "", "", ""
     for file_name in os.listdir('.'):
-        # [문법 오류 수정 완료] try와 with 문을 개별 라인으로 분리하여 syntax error 방지
+        # [SyntaxError 수정] try와 with 문을 별도 라인으로 분리
         if "org" in file_name.lower() or "조직도" in file_name.lower():
             try:
                 with open(file_name, 'r', encoding='utf-8') as f:
@@ -104,7 +104,7 @@ def save_to_sheet(dept, name, rank, category, question, answer, status):
 def send_flow_alert(category, question, name, dept):
     if not flow_secrets: return
     api_key = flow_secrets.get("api_key")
-    room_code = flow_secrets.get("flow_room_code", "BFLOW_211214145658")
+    room_code = flow_secrets.get("flow_room_code")
     if not room_code: return
 
     headers = {"Content-Type": "application/json", "x-flow-api-key": api_key}
@@ -155,18 +155,32 @@ else:
         if user['name'] in ["이경한", "관리자"]:
             st.divider()
             st.markdown("### 🛠️ 관리자 도구")
-            if st.button("🚀 플로우 연동 상태 정밀 점검"):
+            if st.button("🚀 플로우 방 번호(SRNO) 조회"):
                 st.session_state["show_debug"] = True
 
             with st.expander("📂 시스템 파일 현황"):
                 for f in os.listdir('.'):
                     if f.endswith(('.pdf', '.txt')) and f != 'requirements.txt': st.caption(f"- {f}")
 
+    # --- 방 번호 조회 결과 출력 (메인 화면) ---
     if st.session_state.get("show_debug"):
-        st.info("🔍 플로우 API 응답 테스트 중...")
+        st.info("🔍 플로우 프로젝트 목록 분석 중...")
         try:
             res = requests.get("https://api.flow.team/v1/projects", headers={"x-flow-api-key": flow_secrets["api_key"]})
-            st.json(res.json())
+            data = res.json()
+            # image_6c5b0b.png의 구조에 맞게 리스트 추출
+            project_list = data.get("response", {}).get("data", {}).get("projects", {}).get("projects", [])
+            
+            if project_list:
+                st.write("아래 리스트에서 **[민원챗봇] 수신전용프로젝트**를 찾아 ID 숫자를 Secrets에 입력하세요.")
+                for p in project_list:
+                    # SRNO 또는 고유 ID 필드 확인 (일반적으로 project_srno)
+                    p_name = p.get("project_title", p.get("TITLE", "이름없음"))
+                    p_id = p.get("project_srno", p.get("PROJECT_SRNO", "ID없음"))
+                    st.code(f"방이름: {p_name}  👉  ID: {p_id}")
+            else:
+                st.warning("조회된 프로젝트가 없습니다. 권한 설정을 확인하세요.")
+                st.json(data) # 원본 데이터 확인용
         except Exception as e: st.error(f"오류: {e}")
         if st.button("닫기"): 
             st.session_state["show_debug"] = False
@@ -183,11 +197,11 @@ else:
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.chat_message("user").write(prompt)
 
-        # 요청사항 반영: 특정 문구 제거 및 전문적 안내
+        # 요청사항: 특정 문구 제거 및 전문적 안내
         system_instruction = f"""너는 KCIM의 HR AI 매니저야.
         [자료]: {ORG_CHART_DATA} {COMPANY_RULES} {INTRANET_GUIDE}
         
-        1. 시설/수리 관련 질문이나 답변이 불가능한 전문적 내용은 [ACTION] 태그를 붙여.
+        1. 시설/수리 관련 질문이나 직접 해결이 어려운 요청은 [ACTION] 태그를 붙여.
         2. 절대 '이 문제는 HR팀 이경한 매니저에게 문의하셔야 처리할 수 있습니다'라는 문구는 쓰지 마.
         3. 대신 '해당 사안은 담당 부서의 확인이 필요합니다. 내용을 전달하였으니 잠시만 기다려 주세요.'라고 정중히 답해.
         4. 모든 답변 끝에 [CATEGORY:분류]를 달아.
