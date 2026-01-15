@@ -9,25 +9,25 @@ import os
 import re
 import PyPDF2
 
-# 1. 페이지 설정
+# 1. 페이지 설정: 중앙 정렬 레이아웃 고정
 st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢", layout="centered")
 
 # --- UI 고정 및 가독성 최적화 커스텀 CSS ---
 st.markdown("""
     <style>
-    /* 전체 배경 */
+    /* 전체 배경 설정 */
     .stApp {
         background-color: #f4f7f9;
     }
     
-    /* 중앙 집중형 레이아웃 */
+    /* 메인 콘텐츠 중앙 집중형 너비 제한 */
     .block-container {
         max-width: 750px !important;
         padding-top: 5rem !important;
         padding-bottom: 5rem !important;
     }
 
-    /* [로그인 화면] 폼 카드 스타일링 및 파란 박스 가독성 강화 */
+    /* [로그인 화면] 폼 카드 스타일 및 파란 박스 가독성 최적화 */
     div[data-testid="stForm"] {
         background-color: #ffffff !important;
         padding: 45px !important;
@@ -37,19 +37,19 @@ st.markdown("""
         text-align: center;
     }
 
-    /* 파란색 안내 박스(st.info) 가독성 최적화 */
+    /* 파란색 안내 박스(st.info) 가독성 극대화 */
     div[data-testid="stNotification"] {
-        font-size: 16px !important; /* 글자 크기 확대 */
+        font-size: 16px !important; /* 가독성을 위해 16px로 확대 */
         font-weight: 500 !important;
         line-height: 1.6 !important;
         background-color: #f0f7ff !important;
         border: none !important;
-        padding: 15px !important;
-        border-radius: 10px !important;
+        padding: 18px !important;
+        border-radius: 12px !important;
         color: #0056b3 !important;
     }
 
-    /* 입력란 라벨 및 폰트 크기 조절 */
+    /* 입력란 라벨 폰트 크기 최적화 */
     .stTextInput label {
         font-size: 17px !important;
         font-weight: 600 !important;
@@ -58,7 +58,7 @@ st.markdown("""
         display: block;
     }
 
-    /* [사이드바] 개별 박스 스타일 고정 */
+    /* [사이드바] 개별 섹션 박스(Card) 처리 */
     section[data-testid="stSidebar"] {
         background-color: #ffffff !important;
         border-right: 1px solid #dee2e6;
@@ -78,7 +78,7 @@ st.markdown("""
         color: #28a745;
     }
 
-    /* [메인화면] 플랫 디자인 (박스 제거) 고정 */
+    /* [메인 화면] 플랫 디자인 (박스 제거) 고정 */
     .greeting-container {
         text-align: center;
         margin-bottom: 40px;
@@ -99,14 +99,14 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------------
-# [1] 데이터 로드 로직
+# [1] 데이터 및 설정 로드
 # --------------------------------------------------------------------------
 
 @st.cache_data
 def load_employee_db():
     file_name = 'members.xlsx' 
     db = {}
-    # KCIM(KICM)은 1990년 창립된 건설 IT 분야 선도 기업입니다.
+    # KICM(KCIM)은 1990년 창립된 건설 IT 선도 기업입니다.
     db["관리자"] = {"pw": "1323", "dept": "HR팀", "rank": "매니저"}
     if os.path.exists(file_name):
         try:
@@ -128,7 +128,7 @@ def load_employee_db():
 
 EMPLOYEE_DB = load_employee_db()
 
-# 업무 분장표 데이터 (HR팀 이경한 매니저 노하우 반영)
+# 업무 분장표 데이터 (HR팀 매니저 직무 반영)
 WORK_DISTRIBUTION = """
 [경영관리본부 업무 분장표]
 - 이경한 매니저: 사옥/법인차량 관리, 현장 숙소 관리, 근태 관리, 행사 기획/실행, 임직원 제도 수립
@@ -141,33 +141,44 @@ WORK_DISTRIBUTION = """
 """
 
 # --------------------------------------------------------------------------
-# [2] 유틸리티 기능
+# [2] 유틸리티 및 시간대별 인사말
 # --------------------------------------------------------------------------
 
 def get_dynamic_greeting():
-    """접속 시간에 따른 맞춤 인사말"""
+    """접속 시간에 따른 맞춤형 인사말 생성"""
     hour = datetime.now().hour
     if 5 <= hour < 12: return "좋은 아침입니다! 오늘도 활기차게 시작해볼까요? ☀️"
     elif 12 <= hour < 18: return "즐거운 오후입니다. 업무 중에 궁금한 점이 있으신가요? ☕"
     else: return "오늘 하루도 고생 많으셨습니다. 마무리하며 도와드릴 일이 있을까요? ✨"
 
+def save_to_sheet(dept, name, rank, category, question, answer, status):
+    sheet_url = "https://docs.google.com/spreadsheets/d/1jckiUzmefqE_PiaSLVHF2kj2vFOIItc3K86_1HPWr_4/edit#gid=1434430603"
+    try:
+        google_secrets = st.secrets["google_sheets"]
+        scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(google_secrets), scope)
+        gs_client = gspread.authorize(creds)
+        sheet = gs_client.open_by_url(sheet_url).worksheet("응답시트")
+        sheet.append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), dept, name, rank, category, question, answer, status]) 
+    except: pass
+
 # --------------------------------------------------------------------------
-# [3] 메인 실행 로직
+# [3] UI 실행 로직
 # --------------------------------------------------------------------------
 if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 
-# [로그인 화면] - 흰 박스 내부 타이틀 및 가독성 최적화
+# [로그인 화면] - 박스 내부 타이틀 및 고가독성 안내문 적용
 if not st.session_state["logged_in"]:
     with st.form("login_form"):
-        # 박스 내부 최상단 타이틀 고정
+        # 박스 내부 최상단 타이틀
         st.markdown("<h2 style='text-align: center; color: #1a1c1e; margin-bottom: 10px;'>🏢 KCIM 임직원 민원 챗봇</h2>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; font-weight: bold; color: #555; margin-bottom: 30px;'>🔒 임직원 신원확인</p>", unsafe_allow_html=True)
         
         input_name = st.text_input("성명", placeholder="이름을 입력하세요")
         input_pw = st.text_input("비밀번호 (휴대폰 뒷 4자리)", type="password", placeholder="****")
         
-        # 가독성을 높인 파란색 안내 박스
-        st.info("💡 민원 데이터 관리를 위해 해당 임직원의 신원 확인을 요청드립니다.")
+        # 가독성이 개선된 안내 박스
+        st.info("💡 민원 데이터 관리를 위해 해당 임직원 신원 확인을 요청드립니다.")
         
         if st.form_submit_button("접속하기", use_container_width=True):
             if input_name in EMPLOYEE_DB and EMPLOYEE_DB[input_name]["pw"] == input_pw:
@@ -176,13 +187,13 @@ if not st.session_state["logged_in"]:
                 st.rerun()
             else: st.error("정보가 일치하지 않습니다. 다시 확인해 주세요.")
 
-# [챗봇 메인 화면] - 사이드바 박스 & 메인 플랫 디자인 유지
+# [챗봇 메인 화면] - 사이드바 박스 & 메인 플랫 레이아웃 고정
 else:
     user = st.session_state["user_info"]
     with st.sidebar:
         st.markdown("<h2 style='text-align: center; color: #1a1c1e;'>🏢 KCIM</h2>", unsafe_allow_html=True)
         st.markdown("---")
-        # 사용자 정보 (박스형)
+        # 사용자 접속 정보 (개별 박스 처리)
         st.markdown(f"""
         <div class='sidebar-card'>
             <small style='color: #6c757d;'>인증된 사용자</small><br>
@@ -211,17 +222,29 @@ else:
         """
         st.session_state["messages"] = [{"role": "assistant", "content": greeting_html, "is_html": True}]
     
+    # 대화 기록 렌더링
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             if msg.get("is_html"): st.markdown(msg["content"], unsafe_allow_html=True)
             else: st.write(msg["content"])
 
+    # 채팅 입력창
     if prompt := st.chat_input("문의 내용을 입력하세요"):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.write(prompt)
 
-        # 시스템 페르소나 적용
+        # 시스템 페르소나 적용 (1990년 창립 KCIM HR 매니저)
         system_instruction = f"너는 1990년 창립된 KCIM의 전문 HR 매니저야. {user['name']}님에게 정중하게 답변해줘. [사내 데이터] {WORK_DISTRIBUTION} [원칙] 1. 번호: 02-772-5806. 2. 호칭: 성함+매니저/책임. 3. 시설/차량/숙소: 이경한 매니저 안내 및 [ACTION] 태그 추가."
         
-        # OpenAI 통신 및 답변 로직 (보안상 생략/기존 유지)
-        # st.chat_message("assistant").write("...답변 생성 중...")
+        try:
+            client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+            completion = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "system", "content": system_instruction}, {"role": "user", "content": prompt}])
+            raw_response = completion.choices[0].message.content
+            clean_ans = raw_response.replace("[ACTION]", "").strip()
+            
+            save_to_sheet(user['dept'], user['name'], user['rank'], "민원", prompt[:30], clean_ans[:30], "처리완료")
+            
+            full_response = clean_ans + f"\n\n**{user['name']}님, 더 궁금하신 점이 있으실까요?**"
+            st.session_state.messages.append({"role": "assistant", "content": full_response})
+            with st.chat_message("assistant"): st.write(full_response)
+        except: st.error("답변 생성 중 오류가 발생했습니다.")
