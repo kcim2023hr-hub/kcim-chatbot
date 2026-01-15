@@ -95,37 +95,23 @@ def save_to_sheet(dept, name, rank, category, question, answer, status):
         sheet.append_row([now, dept, name, rank, category, question, answer, status]) 
     except: pass
 
-# ★ [수정됨] 404 에러 방지를 위해 여러 경로로 시도하는 스마트 알림 함수
 def send_flow_alert(category, question, name, dept):
     if not flow_secrets: return
-    
-    # Secrets에서 안전하게 값 가져오기 (없으면 에러 방지)
     api_key = flow_secrets.get("api_key")
-    room_code = flow_secrets.get("flow_room_code", "BFLOW_211214145658") # BFLOW 번호 고정
-    
+    room_code = flow_secrets.get("flow_room_code", "BFLOW_211214145658")
     headers = {"Content-Type": "application/json", "x-flow-api-key": api_key}
     icon = "🚨" if "시설" in category else "📢"
     text_content = f"[{icon} 챗봇 민원 알림]\n- 분류: {category}\n- 요청자: {name} ({dept})\n- 내용: {question}"
     payload = {"room_code": room_code, "content": text_content}
-
-    # 404 방지를 위해 가장 유력한 두 가지 주소로 순차 시도
-    endpoints = [
-        "https://api.flow.team/v1/messages/room",
-        "https://api.flow.team/v1/messages/project"
-    ]
-
-    success = False
+    
+    endpoints = ["https://api.flow.team/v1/messages/room", "https://api.flow.team/v1/messages/project"]
     for url in endpoints:
         try:
             response = requests.post(url, json=payload, headers=headers, timeout=5)
             if response.status_code == 200:
-                st.toast(f"✅ Flow 알림 전송 성공! ({url.split('/')[-1]})")
-                success = True
+                st.toast("✅ Flow 알림 전송 성공!")
                 break
         except: continue
-
-    if not success:
-        st.error(f"❌ Flow 알림 실패: 모든 경로(404)를 확인했지만 방을 찾을 수 없습니다. [코드: {room_code}]")
 
 # --------------------------------------------------------------------------
 # [3] 메인 화면 및 로그인
@@ -135,28 +121,52 @@ if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 if not st.session_state["logged_in"]:
     st.header("🔒 임직원 신원 확인")
     with st.form("login"):
-        name = st.text_input("성명")
-        pw = st.text_input("비밀번호 (휴대폰 뒷 4자리)", type="password")
+        name_input = st.text_input("성명")
+        pw_input = st.text_input("비밀번호 (휴대폰 뒷 4자리)", type="password")
         if st.form_submit_button("접속"):
-            if name in EMPLOYEE_DB and EMPLOYEE_DB[name]["pw"] == pw:
+            if name_input in EMPLOYEE_DB and EMPLOYEE_DB[name_input]["pw"] == pw_input:
                 st.session_state["logged_in"] = True
-                st.session_state["user_info"] = EMPLOYEE_DB[name]
-                st.session_state["user_info"]["name"] = name
+                st.session_state["user_info"] = EMPLOYEE_DB[name_input]
+                st.session_state["user_info"]["name"] = name_input
                 st.rerun()
             else: st.error("정보가 일치하지 않습니다.")
 else:
     user = st.session_state["user_info"]
+    
+    # --- 사이드바 복구 ---
     with st.sidebar:
         st.markdown(f"👤 **{user['name']} {user.get('rank','')}**")
         st.caption(f"🏢 {user.get('dept','')}")
         if st.button("로그아웃"):
             st.session_state.clear()
             st.rerun()
+        
+        # 관리자 전용 메뉴 복구
+        if user['name'] in ["이경한", "관리자"]:
+            st.divider()
+            st.markdown("### 🛠️ 관리자 도구")
+            with st.expander("📂 시스템 파일 현황", expanded=False):
+                all_files = sorted(os.listdir('.'))
+                pdfs = [f for f in all_files if f.lower().endswith('.pdf')]
+                txts = [f for f in all_files if f.lower().endswith('.txt') and f != 'requirements.txt']
+                if pdfs:
+                    st.markdown("**📄 규정 문서 (PDF)**")
+                    for f in pdfs: st.caption(f"- {f}")
+                if txts:
+                    st.markdown("**📝 텍스트 데이터 (TXT)**")
+                    for f in txts: st.caption(f"- {f}")
+            
+            with st.expander("👀 데이터 로드 상태 확인", expanded=False):
+                st.write("✅ [1] 조직도 데이터")
+                st.text(ORG_CHART_DATA[:50] + "...")
+                st.write("✅ [2] 인트라넷 가이드")
+                st.text(INTRANET_GUIDE[:50] + "...")
 
-    st.markdown(f"### 👋 안녕하세요, {user['name']}님!")
+    # --- 메인 안내 문구 복구 ---
+    st.markdown(f"### 👋 안녕하세요, {user['name']} {user.get('rank','')}님!")
     
     if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "assistant", "content": "반갑습니다! 무엇을 도와드릴까요?"}]
+        st.session_state.messages = [{"role": "assistant", "content": "반갑습니다! 👋 **복지, 규정, 불편사항, 시설 이용** 등 궁금한 점이 있으시면 언제든 물어보세요."}]
 
     for msg in st.session_state.messages:
         st.chat_message(msg["role"]).write(msg["content"])
@@ -194,4 +204,4 @@ else:
             st.session_state.messages.append({"role": "assistant", "content": clean_ans})
             st.chat_message("assistant").write(clean_ans)
         except Exception as e:
-            st.error(f"❌ 챗봇 응답 중 오류 발생: {e}")
+            st.error(f"❌ 오류 발생: {e}")
