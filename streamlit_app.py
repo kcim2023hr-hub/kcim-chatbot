@@ -21,7 +21,8 @@ st.title("🤖 KCIM 사내 민원/문의 챗봇")
 def load_employee_db():
     file_name = 'members.xlsx' 
     db = {}
-    db["관리자"] = {"pw": "1323", "dept": "HR팀", "rank": "매니저"}
+    # 관리자 정보 및 전화번호 업데이트 (02-772-5806)
+    db["관리자"] = {"pw": "1323", "dept": "HR팀", "rank": "매니저", "tel": "02-772-5806"}
     if os.path.exists(file_name):
         try:
             df = pd.read_excel(file_name, engine='openpyxl')
@@ -98,20 +99,30 @@ def save_to_sheet(dept, name, rank, category, question, answer, status):
 def send_flow_alert(category, question, name, dept):
     if not flow_secrets: return
     api_key = flow_secrets.get("api_key")
+    # 매니저님이 찾으신 BFLOW 고유 ID 사용
     room_code = flow_secrets.get("flow_room_code", "BFLOW_211214145658")
+    
     headers = {"Content-Type": "application/json", "x-flow-api-key": api_key}
     icon = "🚨" if "시설" in category else "📢"
-    text_content = f"[{icon} 챗봇 민원 알림]\n- 분류: {category}\n- 요청자: {name} ({dept})\n- 내용: {question}"
-    payload = {"room_code": room_code, "content": text_content}
     
-    endpoints = ["https://api.flow.team/v1/messages/room", "https://api.flow.team/v1/messages/project"]
-    for url in endpoints:
-        try:
-            response = requests.post(url, json=payload, headers=headers, timeout=5)
-            if response.status_code == 200:
-                st.toast("✅ Flow 알림 전송 성공!")
-                break
-        except: continue
+    # 플로우 게시글 형태로 구성
+    payload = {
+        "project_code": room_code,
+        "title": f"[{icon} 챗봇 민원 접수] {name}님",
+        "content": f"- 분류: {category}\n- 요청자: {name} ({dept})\n- 내용: {question}\n- 일시: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    }
+    
+    # 플로우 게시글(Post) 생성 API로 시도
+    url = "https://api.flow.team/v1/projects/posts"
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=5)
+        if response.status_code == 200:
+            st.toast("✅ Flow 프로젝트에 민원이 접수되었습니다.")
+        else:
+            # 실패 시 기존 메시지 방식(Room)으로 백업 시도
+            backup_url = "https://api.flow.team/v1/messages/room"
+            requests.post(backup_url, json={"room_code": room_code, "content": payload["content"]}, headers=headers, timeout=5)
+    except: pass
 
 # --------------------------------------------------------------------------
 # [3] 메인 화면 및 로그인
@@ -133,7 +144,6 @@ if not st.session_state["logged_in"]:
 else:
     user = st.session_state["user_info"]
     
-    # --- 사이드바 복구 ---
     with st.sidebar:
         st.markdown(f"👤 **{user['name']} {user.get('rank','')}**")
         st.caption(f"🏢 {user.get('dept','')}")
@@ -141,7 +151,6 @@ else:
             st.session_state.clear()
             st.rerun()
         
-        # 관리자 전용 메뉴 복구
         if user['name'] in ["이경한", "관리자"]:
             st.divider()
             st.markdown("### 🛠️ 관리자 도구")
@@ -162,7 +171,6 @@ else:
                 st.write("✅ [2] 인트라넷 가이드")
                 st.text(INTRANET_GUIDE[:50] + "...")
 
-    # --- 메인 안내 문구 복구 ---
     st.markdown(f"### 👋 안녕하세요, {user['name']} {user.get('rank','')}님!")
     
     if "messages" not in st.session_state:
@@ -175,12 +183,15 @@ else:
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.chat_message("user").write(prompt)
 
-        system_instruction = f"""너는 KCIM의 HR/총무 매니저야. 아래 자료를 바탕으로 친절하게 답해줘.
+        # 시스템 지침 수정: 특정 문구 제거 및 정확한 전화번호 부여
+        system_instruction = f"""너는 KCIM의 HR/총무 매니저야. 아래 자료를 바탕으로 답변해줘.
         [조직도]: {ORG_CHART_DATA} [규정]: {COMPANY_RULES} [인트라넷 가이드]: {INTRANET_GUIDE}
         
-        1. 시설/수리 관련 질문은 반드시 "HR팀 이경한 매니저에게 문의바랍니다."라고 답하고 끝에 [CATEGORY:시설/환경] [ACTION] 태그를 붙여.
+        1. 시설/환경/수리 관련 질문이나 답변이 불가능한 전문적인 내용은 [ACTION] 태그를 붙여. 
+           (단, "이 문제는 HR팀 이경한 매니저에게 문의하셔야..."라는 문구는 절대 사용하지 마.)
         2. 인트라넷 메뉴 위치 질문은 가이드를 참고해 정확한 경로(>)를 안내해.
         3. 모든 답변 끝에는 [CATEGORY:분류명]을 꼭 달아줘.
+        4. 문의 전화번호가 필요하다면 02-772-5806으로 안내해.
         """
         
         try:
