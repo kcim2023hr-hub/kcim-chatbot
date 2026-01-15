@@ -23,7 +23,7 @@ def load_employee_db():
     file_name = 'members.xlsx' 
     db = {}
     
-    # 비상용 관리자 계정
+    # 관리자 계정 (1323)
     db["관리자"] = {"pw": "1323", "dept": "HR팀", "rank": "매니저"}
 
     if os.path.exists(file_name):
@@ -39,14 +39,13 @@ def load_employee_db():
                     phone = str(row['휴대폰 번호']).strip()
                     phone_digits = re.sub(r'[^0-9]', '', phone)
                     
-                    # 일반 직원은 휴대폰 뒷 4자리
                     pw = phone_digits[-4:] if len(phone_digits) >= 4 else "0000"
                     
                     db[name] = {"pw": pw, "dept": dept, "rank": rank}
                 except:
                     continue
             
-            # ★ [중요] 이경한 매니저님 비밀번호 강제 변경 (휴대폰 번호 무시)
+            # 이경한 매니저님 비밀번호 강제 변경 (1323)
             if "이경한" in db:
                 db["이경한"]["pw"] = "1323"
 
@@ -57,14 +56,14 @@ def load_employee_db():
 
 EMPLOYEE_DB = load_employee_db()
 
-# 1-2. 데이터 로드 (조직도 vs 일반규정 분리)
+# 1-2. 데이터 로드
 @st.cache_data
 def load_data():
     org_text = ""
     general_rules = ""
     
     for file_name in os.listdir('.'):
-        # 1. 조직도 파일(org_chart.txt)
+        # 1. 조직도 파일
         if "org" in file_name.lower() or "조직도" in file_name.lower():
             if file_name.endswith('.txt'):
                 try:
@@ -86,7 +85,7 @@ def load_data():
                 general_rules += f"\n\n=== [사내 규정 파일: {file_name}] ===\n{content}\n"
             except: pass
         
-        # 3. TXT 자료 (업무분장표 등)
+        # 3. TXT 자료
         elif file_name.lower().endswith('.txt') and file_name != "requirements.txt":
             try:
                 with open(file_name, 'r', encoding='utf-8') as f: content = f.read()
@@ -110,14 +109,17 @@ except Exception as e:
     st.error(f"비밀번호 설정 오류: {e}")
     st.stop()
 
-def save_to_sheet(dept, name, rank, question, answer, status):
+# ★ [수정] 카테고리(category) 인자 추가
+def save_to_sheet(dept, name, rank, category, question, answer, status):
     try:
         scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
         creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(google_secrets), scope)
         gs_client = gspread.authorize(creds)
         sheet = gs_client.open_by_url(sheet_url).worksheet("응답시트")
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        sheet.append_row([now, dept, name, rank, question, answer, status]) 
+        
+        # 구글 시트에 저장되는 순서: [시간, 부서, 이름, 직급, 분류, 질문, 답변, 상태]
+        sheet.append_row([now, dept, name, rank, category, question, answer, status]) 
     except Exception as e:
         pass
 
@@ -165,7 +167,7 @@ else:
     user = st.session_state["user_info"]
     
     # ----------------------------------------------------------------------
-    # [사이드바] 사용자 정보 및 관리자용 메뉴
+    # [사이드바]
     # ----------------------------------------------------------------------
     with st.sidebar:
         st.markdown(f"👤 **{user['name']} {user['rank']}**")
@@ -174,12 +176,10 @@ else:
             st.session_state.clear()
             st.rerun()
         
-        # 관리자 전용 기능 (이경한, 관리자)
         if user['name'] in ["이경한", "관리자"]:
             st.divider()
             st.markdown("### 🛠️ 관리자 도구")
             
-            # 1. 파일 트리 보기
             with st.expander("📂 시스템 파일 현황", expanded=False):
                 all_files = sorted(os.listdir('.'))
                 pdfs = [f for f in all_files if f.lower().endswith('.pdf')]
@@ -196,7 +196,6 @@ else:
                     st.markdown("**📊 엑셀 데이터 (XLSX/CSV)**")
                     for f in excels: st.caption(f"- {f}")
 
-            # 2. 데이터 읽기 상태 확인
             with st.expander("👀 데이터 로드 상태 확인", expanded=False):
                 st.write("✅ [1] 조직도 데이터 (앞부분)")
                 st.text(ORG_CHART_DATA[:150] + "...")
@@ -204,7 +203,7 @@ else:
                 st.text(COMPANY_RULES[:150] + "...")
 
     # ----------------------------------------------------------------------
-    # [메인 화면] 챗봇 인터페이스
+    # [메인 화면]
     # ----------------------------------------------------------------------
     st.markdown(f"### 👋 안녕하세요, {user['name']} {user['rank']}님!")
 
@@ -246,22 +245,25 @@ else:
             {ORG_CHART_DATA}
             {COMPANY_RULES}
 
-            [3단계: 답변 작성 원칙 (매우 중요!)]
+            [3단계: 답변 작성 원칙 및 카테고리 분류]
             
             ★ 0순위 (시설 관련 문의) ★
-            - 질문에 '시설', '사옥', '주차', '청소', '건물', '수리', '에어컨', '난방' 등의 키워드가 포함되거나 시설 관련 불만/요청이라면,
-            - 다른 내용을 찾지 말고 무조건 "시설 관련 문의는 **HR팀 이경한 매니저에게 문의바랍니다.**"라고만 답해.
-            - 그리고 [ACTION] 태그를 붙여.
+            - 질문이 '시설', '주차', '청소', '건물', '수리', '냉난방' 관련이면:
+            - 답변: "시설 관련 문의는 **HR팀 이경한 매니저에게 문의바랍니다.**"
+            - 태그: [CATEGORY:시설/환경] [ACTION]
+            - 더 이상 다른 말을 덧붙이지 마.
 
-            1. (사내 자료에 답이 있는 경우): 무조건 사내 자료를 기준으로 답변해.
-            
-            2. (사내 자료에 없지만, 일반적인 법률/지식인 경우):
-               - 네가 학습한 일반 지식(근로기준법, 세법 등)을 활용해서 답변해.
-               - 단, 답변 시작 전에 반드시 "⚠️ 이 내용은 사내 규정집에는 없으며, 일반적인 기준에 따른 안내입니다." 라는 경고 문구를 붙여.
-            
-            3. (사내 자료에도 없고, 일반 지식도 아닌 '회사 고유 정보'인 경우):
-               - 절대 지어내지 말고, 업무분장표를 보고 담당자를 찾아 연결해줘.
-               - "이 부분은 규정집에 없어 확인이 필요합니다. OOO 담당자님께 문의해주세요."라고 하고 [ACTION] 태그를 붙여.
+            1. 일반 답변 시:
+               - 사내 자료가 있으면 그것을 바탕으로 답해.
+               - 사내 자료가 없으면 일반 지식으로 답하되 경고 문구("⚠️ 일반적인 기준 안내")를 붙여.
+               - 담당자 연결이 필요하면 [ACTION] 태그를 붙여.
+
+            2. ★ 필수: 답변 맨 마지막 줄에 질문의 성격을 아래 중 하나로 분류해서 태그를 달아줘.
+               - [CATEGORY:인사/근태] (휴가, 연봉, 평가, 증명서 등)
+               - [CATEGORY:총무/복지] (경조사, 비품, 차량, 복리후생 등)
+               - [CATEGORY:시설/환경] (건물, 주차, 수리, 청소 등)
+               - [CATEGORY:IT/보안] (PC, 와이파이, 소프트웨어 등)
+               - [CATEGORY:기타]
             """
             
             try:
@@ -275,6 +277,17 @@ else:
                 st.error(f"오류: {e}")
                 raw_response = "[INFO] 시스템 오류가 발생했습니다."
 
+            # 태그 파싱 및 정제
+            category = "기타"
+            
+            # 카테고리 추출
+            if "[CATEGORY:" in raw_response:
+                match = re.search(r'\[CATEGORY:(.*?)\]', raw_response)
+                if match:
+                    category = match.group(1)
+                    raw_response = raw_response.replace(match.group(0), "") # 화면에는 안 보이게 제거
+
+            # 상태 추출
             if "[ACTION]" in raw_response:
                 final_status = "담당자확인필요"
                 clean_response = raw_response.replace("[ACTION]", "").strip()
@@ -282,7 +295,8 @@ else:
                 final_status = "처리완료"
                 clean_response = raw_response.replace("[INFO]", "").strip()
 
-            save_to_sheet(user['dept'], user['name'], user['rank'], prompt, clean_response, final_status)
+            # 시트에 저장 (카테고리 포함)
+            save_to_sheet(user['dept'], user['name'], user['rank'], category, prompt, clean_response, final_status)
 
             full_response = clean_response + "\n\n**더 이상의 민원은 없으실까요?**"
             st.session_state.messages.append({"role": "assistant", "content": full_response})
