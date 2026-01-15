@@ -12,32 +12,39 @@ import PyPDF2
 # 1. 페이지 설정
 st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢")
 
-# --- 커스텀 CSS: 중앙 정렬, 글씨 크기 및 사이드바 스타일링 ---
+# --- 커스텀 CSS: 디자인 및 레이아웃 최적화 ---
 st.markdown("""
     <style>
-    /* 메인 컨테이너 너비 제한 (중앙 집중) */
+    /* 메인 컨테이너 중앙 정렬 및 너비 제한 */
     .block-container {
         max-width: 850px;
         padding-top: 2rem;
     }
-    /* 인삿말 타이틀 스타일링 */
+    /* 메인 인삿말 타이틀 (크게) */
     .greeting-title {
         font-size: 32px !important;
         font-weight: 800;
         color: #1E1E1E;
         margin-bottom: 8px;
     }
+    /* 메인 인삿말 서브타이틀 */
     .greeting-subtitle {
         font-size: 20px !important;
         color: #444;
         margin-bottom: 25px;
     }
-    /* 사이드바 부서명 크기 조절 */
+    /* 사이드바 접속 정보 - 팀명(부서명) 크게 */
     .sidebar-dept {
-        font-size: 18px !important;
+        font-size: 19px !important;
         font-weight: 600;
-        color: #666;
+        color: #555;
         margin-top: -10px;
+        margin-bottom: 10px;
+    }
+    /* 사이드바 카테고리 리스트 스타일 */
+    .service-item {
+        font-size: 15px !important;
+        margin-bottom: 8px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -103,7 +110,7 @@ def load_data():
 
 ORG_CHART_DATA, COMPANY_RULES, INTRANET_GUIDE = load_data()
 
-# 업무 분장 데이터
+# 업무 분장 데이터 (2026-01-02 기반)
 WORK_DISTRIBUTION = """
 [경영관리본부 업무 분장표]
 - 이경한 매니저: 사옥/법인차량 관리, 현장 숙소 관리, 근태 관리, 행사 기획/실행, 제증명 발급, 지출결의(출장/숙소), 간식구매
@@ -190,29 +197,27 @@ else:
     
     # --- 좌측 패널(사이드바) 최적화 ---
     with st.sidebar:
-        # 로고 영역 (이미지 파일 준비 시 경로를 'logo.png' 등으로 수정하세요)
-        # st.image("logo.png", use_column_width=True) # 파일이 있을 경우 주석 해제
+        # 로고 영역 (이미지 파일 준비 시 경로를 수정하세요)
+        # st.image("logo.png", use_column_width=True) 
         st.markdown("<h2 style='text-align: center; color: #E74C3C;'>🏢 KCIM</h2>", unsafe_allow_html=True)
         st.markdown("---")
         
         st.subheader("👤 접속 정보")
         st.success(f"**{user['name']} {user['rank']}**")
-        # 팀명(부서명) 크기 키우기 적용
         st.markdown(f"<p class='sidebar-dept'>🏢 {user['dept']}</p>", unsafe_allow_html=True)
         
         st.markdown("---")
         
-        # 주요 서비스 확장 (업무 분장 기반 추천)
+        # [수정 사항] 이미지 카테고리 기반 주요 서비스 안내
         st.subheader("🚀 주요 서비스 안내")
         st.markdown("""
-        - 📅 **근태/연차/출장 관리**
-        - 🚗 **시설/법인차량/숙소**
-        - 📜 **사내규정/취업규칙**
-        - 🎓 **교육 및 채용 안내**
-        - 📑 **증명서/비용/지출결의**
-        - 📦 **비품 구매/간식 신청**
-        - 💻 **어울지기/플로우 지원**
-        """)
+        <div class='service-item'>🛠️ <b>시설/수리</b>: 사옥·차량 유지보수, 장비 교체</div>
+        <div class='service-item'>👤 <b>입퇴사/이동</b>: 제증명, 인사발령, 채용 문의</div>
+        <div class='service-item'>📋 <b>프로세스/규정</b>: 사내규정, 시스템 사용 이슈</div>
+        <div class='service-item'>🎁 <b>복지/휴가</b>: 복리후생, 경조사, 교육 지원</div>
+        <div class='service-item'>📢 <b>불편사항</b>: 근무 환경 컴플레인 및 개선</div>
+        <div class='service-item'>💬 <b>일반/기타</b>: 단순 질의 및 업무 협조 요청</div>
+        """, unsafe_allow_html=True)
         
         st.markdown("---")
         if st.button("🚪 로그아웃", use_container_width=True):
@@ -221,7 +226,6 @@ else:
 
     # --- 메인 채팅 화면 ---
     if "messages" not in st.session_state:
-        # 인삿말 크기 및 구성 수정
         greeting_html = f"""
         <div style="margin-top: 20px;">
             <p class="greeting-title">{user['name']} {user['rank']}님, 반갑습니다! 👋</p>
@@ -267,7 +271,7 @@ else:
             1. 안내 번호: 02-772-5806.
             2. 담당자 언급: 성함 뒤에 반드시 '매니저' 또는 '책임' 직급을 붙여 호칭해.
             3. 시설/차량/숙소: "HR팀 이경한 매니저에게 문의바랍니다." 안내 및 [ACTION] 태그 포함.
-            4. 답변 끝에 반드시 [CATEGORY:분류명] 태그 포함.
+            4. 답변 끝에 반드시 [CATEGORY:분류명] 태그 포함. (이미지의 카테고리명 활용: 시설/수리, 입퇴사/이동, 프로세스/규정, 복지/휴가, 불편사항, 일반/기타)
             """
             
             try:
