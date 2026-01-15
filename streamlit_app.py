@@ -15,14 +15,14 @@ st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢")
 st.title("🤖 KCIM 사내 민원/문의 챗봇")
 
 # --------------------------------------------------------------------------
-# [1] 데이터 로드 (전화번호 02-772-5806 반영 및 문법 오류 수정)
+# [1] 데이터 로드 (02-772-5806 반영 완료)
 # --------------------------------------------------------------------------
 
 @st.cache_data
 def load_employee_db():
     file_name = 'members.xlsx' 
     db = {}
-    # 요청하신 전화번호로 업데이트 완료 (02-772-5806)
+    # 전화번호 수정: 02-772-5806
     db["관리자"] = {"pw": "1323", "dept": "HR팀", "rank": "매니저", "tel": "02-772-5806"}
     if os.path.exists(file_name):
         try:
@@ -48,21 +48,16 @@ EMPLOYEE_DB = load_employee_db()
 def load_data():
     org_text, general_rules, intranet_guide = "", "", ""
     for file_name in os.listdir('.'):
-        # [SyntaxError 해결] try와 with 문을 개별 라인으로 분리하여 수정 완료
         if "org" in file_name.lower() or "조직도" in file_name.lower():
             try:
-                with open(file_name, 'r', encoding='utf-8') as f:
-                    org_text += f.read() + "\n"
+                with open(file_name, 'r', encoding='utf-8') as f: org_text += f.read() + "\n"
             except:
-                with open(file_name, 'r', encoding='cp949') as f:
-                    org_text += f.read() + "\n"
+                with open(file_name, 'r', encoding='cp949') as f: org_text += f.read() + "\n"
         elif "intranet" in file_name.lower() and file_name.endswith('.txt'):
             try:
-                with open(file_name, 'r', encoding='utf-8') as f:
-                    intranet_guide += f.read() + "\n"
+                with open(file_name, 'r', encoding='utf-8') as f: intranet_guide += f.read() + "\n"
             except:
-                with open(file_name, 'r', encoding='cp949') as f:
-                    intranet_guide += f.read() + "\n"
+                with open(file_name, 'r', encoding='cp949') as f: intranet_guide += f.read() + "\n"
         elif file_name.lower().endswith('.pdf'):
             try:
                 reader = PyPDF2.PdfReader(file_name)
@@ -72,17 +67,15 @@ def load_data():
             except: pass
         elif file_name.lower().endswith('.txt') and file_name != "requirements.txt":
             try:
-                with open(file_name, 'r', encoding='utf-8') as f:
-                    general_rules += f.read() + "\n"
+                with open(file_name, 'r', encoding='utf-8') as f: general_rules += f.read() + "\n"
             except:
-                with open(file_name, 'r', encoding='cp949') as f:
-                    general_rules += f.read() + "\n"
+                with open(file_name, 'r', encoding='cp949') as f: general_rules += f.read() + "\n"
     return org_text, general_rules, intranet_guide
 
 ORG_CHART_DATA, COMPANY_RULES, INTRANET_GUIDE = load_data()
 
 # --------------------------------------------------------------------------
-# [2] 외부 연동 (Secrets 및 Flow API 최적화)
+# [2] 외부 연동 설정 (Flow API 전송 방식 최적화)
 # --------------------------------------------------------------------------
 try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
@@ -104,27 +97,25 @@ def save_to_sheet(dept, name, rank, category, question, answer, status):
 def send_flow_alert(category, question, name, dept):
     if not flow_secrets: return
     api_key = flow_secrets.get("api_key")
-    # image_6cbc4f에서 확인된 진짜 Project ID 적용
+    # image_6cbc4f에서 확인된 숫자 ID 적용
     room_code = flow_secrets.get("flow_room_code", "2786111")
     
     headers = {"Content-Type": "application/json", "x-flow-api-key": api_key}
     content = f"[🚨 챗봇 민원 알림]\n- 요청자: {name} ({dept})\n- 분류: {category}\n- 내용: {question}\n- 일시: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
 
-    # --- [수정] 피드(Feed) 게시글 전송 로직 강화 ---
+    # 프로젝트 게시글(Feed)로 전송 (가장 확실한 방식)
     try:
         url = "https://api.flow.team/v1/projects/posts"
-        # 플로우 서버가 요구하는 규격(project_code, title, content)에 맞춤
-        payload = {"project_code": room_code, "title": "🤖 챗봇 민원 접수", "content": content}
+        payload = {"project_code": str(room_code), "title": "🤖 챗봇 민원 접수", "content": content}
         res = requests.post(url, json=payload, headers=headers, timeout=5)
-        
         if res.status_code == 200:
-            st.toast("✅ Flow 알림 전송 성공!")
-            return
+            st.toast("✅ Flow 피드 전송 성공")
+            return True
         else:
-            # 실패 시 서버가 보낸 실제 에러 내용을 사용자에게 보여줌 (디버깅용)
             st.error(f"❌ 전송 실패 ({res.status_code}): {res.text}")
     except Exception as e:
-        st.error(f"❌ 연결 오류: {e}")
+        st.error(f"❌ 연결 에러: {e}")
+    return False
 
 # --------------------------------------------------------------------------
 # [3] 메인 화면 및 UI
@@ -135,7 +126,7 @@ if not st.session_state["logged_in"]:
     st.header("🔒 임직원 신원 확인")
     with st.form("login"):
         name_input = st.text_input("성명")
-        pw_input = st.text_input("비밀번호 (휴대폰 뒷 4자리)", type="password")
+        pw_input = st.text_input("비밀번호", type="password")
         if st.form_submit_button("접속"):
             if name_input in EMPLOYEE_DB and EMPLOYEE_DB[name_input]["pw"] == pw_input:
                 st.session_state["logged_in"] = True
@@ -152,13 +143,16 @@ else:
             st.session_state.clear()
             st.rerun()
         
-        # 관리자 도구 복구
         if user['name'] in ["이경한", "관리자"]:
             st.divider()
             st.markdown("### 🛠️ 관리자 도구")
-            with st.expander("📂 시스템 파일 현황"):
-                all_files = sorted(os.listdir('.'))
-                for f in all_files:
+            # ★ 즉시 연동 테스트 버튼
+            if st.button("🔔 Flow 연동 테스트"):
+                success = send_flow_alert("테스트", "연동 테스트 메시지입니다.", user['name'], user['dept'])
+                if success: st.success("플로우 프로젝트를 확인해 보세요!")
+
+            with st.expander("📂 파일 현황"):
+                for f in os.listdir('.'):
                     if f.endswith(('.pdf', '.txt')) and f != 'requirements.txt': st.caption(f"- {f}")
 
     st.markdown(f"### 👋 안녕하세요, {user['name']} {user.get('rank','')}님!")
@@ -172,11 +166,10 @@ else:
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.chat_message("user").write(prompt)
 
-        # 시스템 지침: 요청하신 문구 제거 및 전문적 안내 반영
         system_instruction = f"""너는 KCIM의 HR AI 매니저야. 아래 자료를 바탕으로 답변해줘.
         [자료]: {ORG_CHART_DATA} {COMPANY_RULES} {INTRANET_GUIDE}
         
-        1. 시설/수리 관련 질문이나 직접 해결이 어려운 요청은 반드시 [ACTION] 태그를 붙여.
+        1. 시설/수리 관련 질문이나 전문 답변이 필요한 내용은 반드시 [ACTION] 태그를 붙여.
         2. 절대 '이 문제는 HR팀 이경한 매니저에게 문의하셔야 처리할 수 있습니다'라는 문구는 쓰지 마.
         3. 대신 '해당 사안은 담당 부서의 확인이 필요합니다. 내용을 전달하였으니 잠시만 기다려 주세요.'라고 정중히 답해.
         4. 모든 답변 끝에 [CATEGORY:분류명]을 꼭 달아줘.
@@ -189,11 +182,7 @@ else:
                 messages=[{"role": "system", "content": system_instruction}, {"role": "user", "content": prompt}]
             )
             raw = completion.choices[0].message.content
-            
-            category = "기타"
-            cat_match = re.search(r'\[CATEGORY:(.*?)\]', raw)
-            if cat_match: category = cat_match.group(1)
-            
+            category = re.search(r'\[CATEGORY:(.*?)\]', raw).group(1) if "[CATEGORY:" in raw else "기타"
             final_status = "담당자확인필요" if "[ACTION]" in raw else "처리완료"
             clean_ans = raw.replace("[ACTION]","").replace(f"[CATEGORY:{category}]","").strip()
             
