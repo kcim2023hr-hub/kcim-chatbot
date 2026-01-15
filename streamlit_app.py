@@ -13,57 +13,60 @@ st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢")
 st.title("🤖 KCIM 사내 민원/문의 챗봇")
 
 # --------------------------------------------------------------------------
-# [1] 직원 데이터베이스 로드 (파일명: members.csv)
+# [1] 직원 데이터베이스 로드 (파일명: members.xlsx)
 # --------------------------------------------------------------------------
 @st.cache_data
 def load_employee_db():
-    # 반드시 파일 이름을 members.csv로 변경해서 GitHub에 올려주세요!
-    file_name = 'members.csv' 
+    # 엑셀 파일 이름 (확장자 주의!)
+    file_name = 'members.xlsx' 
     
     db = {}
     
-    # 관리자 계정 (비상용)
+    # 관리자용 슈퍼 계정
     db["관리자"] = {"pw": "1234", "dept": "HR팀", "rank": "매니저"}
 
     if os.path.exists(file_name):
         try:
-            # CSV 파일 읽기
-            try:
-                df = pd.read_csv(file_name)
-            except UnicodeDecodeError:
-                df = pd.read_csv(file_name, encoding='cp949')
+            # 엑셀 파일 읽기 (engine='openpyxl' 사용)
+            df = pd.read_excel(file_name, engine='openpyxl')
             
-            # [수정됨] 새 파일의 항목 이름에 맞춰 데이터를 가져옵니다.
-            # 새 헤더: 이름, 부서, 직급, 휴대폰 번호
+            # 헤더 공백 제거 (이름, 부서 등)
+            df.columns = [str(c).strip() for c in df.columns]
+
             for _, row in df.iterrows():
-                name = str(row['이름']).strip()
-                dept = str(row['부서']).strip()
-                rank = str(row['직급']).strip()
-                phone = str(row['휴대폰 번호']).strip()
-                
-                # 휴대폰 번호에서 숫자만 추출 (하이픈 제거)
-                phone_digits = re.sub(r'[^0-9]', '', phone)
-                
-                # 뒷 4자리를 비밀번호로 사용
-                if len(phone_digits) >= 4:
-                    pw = phone_digits[-4:]
-                else:
-                    pw = "0000" # 번호가 없으면 0000
-                
-                # DB에 저장
-                db[name] = {
-                    "pw": pw,
-                    "dept": dept,
-                    "rank": rank
-                }
+                try:
+                    # 데이터 읽기 (문자열 변환 및 공백 제거)
+                    name = str(row['이름']).strip()
+                    dept = str(row['부서']).strip()
+                    rank = str(row['직급']).strip()
+                    phone = str(row['휴대폰 번호']).strip()
+                    
+                    # 휴대폰 번호에서 숫자만 추출
+                    phone_digits = re.sub(r'[^0-9]', '', phone)
+                    
+                    # 뒷 4자리 비밀번호 생성
+                    if len(phone_digits) >= 4:
+                        pw = phone_digits[-4:]
+                    else:
+                        pw = "0000"
+                    
+                    # DB에 저장
+                    db[name] = {
+                        "pw": pw,
+                        "dept": dept,
+                        "rank": rank
+                    }
+                except KeyError:
+                    continue # 필수 칸이 비어있으면 건너뜀
+                except Exception:
+                    continue
+                    
         except Exception as e:
-            st.error(f"❌ 파일 읽기 오류: {e}")
-            st.write("상세 에러:", e)
+            st.error(f"❌ 엑셀 파일 읽기 실패: {e}")
+            st.info("requirements.txt에 'openpyxl'을 추가했는지 확인해주세요.")
     else:
-        # 파일이 없을 때 진단 메시지
-        st.error(f"⚠️ '{file_name}' 파일을 찾을 수 없습니다.")
-        st.warning(f"📂 현재 GitHub에 있는 파일 목록: {os.listdir('.')}")
-        st.info("PC에서 파일 이름을 'members.csv'로 바꾼 뒤 GitHub에 업로드해주세요.")
+        st.warning(f"⚠️ '{file_name}' 파일을 찾을 수 없습니다.")
+        st.info("GitHub에 'members.xlsx' 이름으로 업로드되었는지 확인해주세요.")
         
     return db
 
@@ -98,7 +101,7 @@ def save_to_sheet(dept, name, rank, question, answer):
         sheet.append_row([now, dept, name, rank, question, answer, ""]) 
         
     except Exception as e:
-        st.error(f"기록 실패: {e}")
+        st.error(f"구글 시트 기록 실패: {e}")
 
 # 4. 로그인 화면
 def login():
@@ -127,12 +130,12 @@ def login():
                         "rank": user_data["rank"]
                     }
                     st.success(f"{input_name} {user_data['rank']}님, 환영합니다!")
-                    time.sleep(1)
+                    time.sleep(0.5)
                     st.rerun()
                 else:
-                    st.error("비밀번호가 일치하지 않습니다.")
+                    st.error("비밀번호(휴대폰 뒷 4자리)가 일치하지 않습니다.")
             else:
-                st.error("명단에 없는 이름입니다.")
+                st.error("등록되지 않은 직원입니다.")
 
 # 5. 메인 로직
 if "logged_in" not in st.session_state:
@@ -161,9 +164,16 @@ else:
 
         response = ""
         try:
+            # KCIM 규정 프롬프트
             system_instruction = """
             너는 KCIM(케이씨아이엠)의 HR/총무 담당 AI 매니저야.
             임직원의 질문에 대해 아래 [사내 규정]을 기반으로 친절하고 명확하게 답변해.
+            
+            [사내 규정 요약]
+            1. 법인차량: 그룹웨어 신청, 키 수령(본사 3층 경영지원팀), 운행일지 필수.
+            2. 연차: 오전/오후 반차 가능, 팀장 전결(3일 이상 본부장).
+            3. 경조사: 결혼(본인 50만/5일), 1주일 전 신청서 제출.
+            4. 기타: "담당자 확인 후 처리해 드리겠습니다."라고 답하고 [민원접수] 태그 붙임.
             """
             
             completion = client.chat.completions.create(
