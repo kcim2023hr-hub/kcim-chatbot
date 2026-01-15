@@ -19,7 +19,7 @@ except Exception as e:
     st.stop()
 
 def get_target_project_code():
-    """309개 프로젝트를 페이지별로 모두 뒤져서 '[민원챗봇] 수신전용프로젝트' 코드를 찾음"""
+    """309개 이상의 프로젝트를 모두 뒤져서 '[민원챗봇] 수신전용프로젝트' 코드를 찾음"""
     headers = {"Content-Type": "application/json", "x-flow-api-key": FLOW_API_KEY}
     url = "https://api.flow.team/v1/projects"
     next_cursor = None
@@ -42,13 +42,12 @@ def get_target_project_code():
             if not p_data.get('hasNext'): break
             next_cursor = p_data.get('lastCursor')
         else: break
-    
-    # 만약 이름으로 못 찾을 경우, 확인된 숫자를 최후의 보루로 사용
-    return "2786111"
+    return None
 
 def send_flow_alert(category, question, user_name):
-    # 전수 조사를 통해 진짜 코드 획득 (404 방지)
+    # 전수 조사를 통해 진짜 코드 획득 (404 방지의 핵심)
     p_code = get_target_project_code()
+    if not p_code: return False, "309개 중 '[민원챗봇] 수신전용프로젝트'를 찾지 못했습니다."
     
     headers = {"Content-Type": "application/json", "x-flow-api-key": FLOW_API_KEY}
     url = "https://api.flow.team/v1/posts"
@@ -61,7 +60,7 @@ def send_flow_alert(category, question, user_name):
     return (True, "성공") if res.status_code == 200 else (False, f"실패({res.status_code})")
 
 # --------------------------------------------------------------------------
-# [2] UI 및 챗봇 로직 (지침 준수: 성함 언급 금지, 번호 02-772-5806)
+# [2] UI 및 챗봇 로직 (지침 준수: 성함 언급 금지, 번호 02-772-5806 고정)
 # --------------------------------------------------------------------------
 if "messages" not in st.session_state:
     st.session_state.messages = [{"role": "assistant", "content": "반갑습니다! 👋 문의사항은 **02-772-5806**으로 연락주시거나 여기에 남겨주세요."}]
@@ -74,8 +73,8 @@ if prompt := st.chat_input("질문을 입력하세요"):
     st.chat_message("user").write(prompt)
 
     # 지침: 매니저님 성함 언급 절대 금지 및 안내 번호 고정
-    sys_msg = """너는 KCIM HR AI 매니저야. 
-    1. 답변 시 절대 담당자의 성함을 직접 언급하지 마. 
+    sys_msg = """너는 KCIM HR AI야. 
+    1. 답변 시 절대 담당자의 성함(이경한 등)을 직접 언급하지 마. 
     2. 직접 해결이 어려운 요청은 '담당 부서의 확인이 필요합니다. 내용을 전달하였으니 잠시만 기다려 주세요.'라고 정중히 답해.
     3. 상담 안내 번호는 02-772-5806으로 안내해.
     """
@@ -92,11 +91,11 @@ if prompt := st.chat_input("질문을 입력하세요"):
         st.chat_message("assistant").write(ans)
     except Exception as e: st.error(f"오류: {e}")
 
-# 관리자용 테스트 도구
+# 관리자용 테스트
 with st.sidebar:
     st.markdown("### 🛠️ 관리자 도구")
     if st.button("🔔 연동 최종 테스트"):
-        with st.status("309개 프로젝트 전수 조사 및 전송 시도 중...") as s:
-            ok, msg = send_flow_alert("시스템 테스트", "연동이 드디어 최종 성공했습니다!", "관리자")
+        with st.status("309개 프로젝트 전수 조사 중...") as s:
+            ok, msg = send_flow_alert("시스템 테스트", "연동이 최종 성공했습니다!", "관리자")
             if ok: s.update(label="✅ 전송 성공! 플로우를 확인하세요.", state="complete")
-            else: st.error(f"마지막 고비: {msg}")
+            else: st.error(msg)
