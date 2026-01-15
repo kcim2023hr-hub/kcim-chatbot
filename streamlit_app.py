@@ -81,7 +81,7 @@ def load_data():
 
 ORG_CHART_DATA, COMPANY_RULES, INTRANET_GUIDE = load_data()
 
-# 업무 분장표 데이터 (2026-01-02 지침 반영) [cite: 2026-01-02]
+# 업무 분장표 데이터 (2026-01-02 지침 반영)
 WORK_DISTRIBUTION = """
 [경영관리본부 업무 분장표]
 - 이경한: 사옥/법인차량 관리, 현장 숙소 관리, 근태/연차/휴가 관리, 행사 기획/실행, 제증명 발급, 지출결의(출장/숙소), 간식구매 등
@@ -148,8 +148,8 @@ if not st.session_state["logged_in"]:
         input_name = col1.text_input("성명")
         input_pw = col2.text_input("비밀번호 (휴대폰 뒷 4자리)", type="password")
         
-        # 안내 문구 추가 (st.info 활용)
-        st.info("💡 민원 데이터 관리를 위해 해당 임직원 신원 확인과 같이 추천드립니다.")
+        # --- 수정된 안내 문구 ---
+        st.info("💡 민원 데이터 관리를 위해 해당 임직원 신원 확인을 요청드립니다.")
 
         if st.form_submit_button("접속하기"):
             if input_name in EMPLOYEE_DB and EMPLOYEE_DB[input_name]["pw"] == input_pw:
@@ -202,7 +202,7 @@ else:
         # 일반 답변 생성 단계
         if not st.session_state["awaiting_confirmation"]:
             system_instruction = f"""
-            너는 1990년 창립된 건설 IT 선도 기업 KCIM의 HR/총무 AI 매니저야. [cite: 2026-01-02]
+            너는 1990년 창립된 건설 IT 선도 기업 KCIM의 HR/총무 AI 매니저야.
             친절하고 전문적인 태도로 임직원의 문의에 답변해줘.
 
             [사내 데이터]
@@ -214,7 +214,7 @@ else:
             [원칙]
             1. 대표 안내 번호: 02-772-5806 고정.
             2. 담당자 지칭: 반드시 '성함 + 매니저'라고 정중히 표현해 (예: 이경한 매니저).
-            3. 시설/수리/숙소/차량 관련: "HR팀 이경한 매니저에게 문의바랍니다."라고 안내하고 [ACTION] 태그를 포함해. [cite: 2026-01-02]
+            3. 시설/수리/숙소/차량 관련: "HR팀 이경한 매니저에게 문의바랍니다."라고 안내하고 [ACTION] 태그를 포함해.
             4. 답변 끝에 반드시 [CATEGORY:분류명] 태그를 추가해 (예: [CATEGORY:복리후생]).
             """
             
