@@ -15,14 +15,14 @@ st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢")
 st.title("🤖 KCIM 사내 민원/문의 챗봇")
 
 # --------------------------------------------------------------------------
-# [1] 데이터 로드 (02-772-5806 반영 및 문법 오류 완벽 수정)
+# [1] 데이터 로드 (02-772-5806 반영 및 안정성 강화)
 # --------------------------------------------------------------------------
 
 @st.cache_data
 def load_employee_db():
     file_name = 'members.xlsx' 
     db = {}
-    # 관리자 정보 및 전화번호 업데이트 (02-772-5806)
+    # 상담 안내 번호 업데이트: 02-772-5806
     db["관리자"] = {"pw": "1323", "dept": "HR팀", "rank": "매니저", "tel": "02-772-5806"}
     if os.path.exists(file_name):
         try:
@@ -48,21 +48,16 @@ EMPLOYEE_DB = load_employee_db()
 def load_data():
     org_text, general_rules, intranet_guide = "", "", ""
     for file_name in os.listdir('.'):
-        # [SyntaxError 해결] try와 with 문을 개별 라인으로 분리하여 수정 완료
         if "org" in file_name.lower() or "조직도" in file_name.lower():
             try:
-                with open(file_name, 'r', encoding='utf-8') as f:
-                    org_text += f.read() + "\n"
+                with open(file_name, 'r', encoding='utf-8') as f: org_text += f.read() + "\n"
             except:
-                with open(file_name, 'r', encoding='cp949') as f:
-                    org_text += f.read() + "\n"
+                with open(file_name, 'r', encoding='cp949') as f: org_text += f.read() + "\n"
         elif "intranet" in file_name.lower() and file_name.endswith('.txt'):
             try:
-                with open(file_name, 'r', encoding='utf-8') as f:
-                    intranet_guide += f.read() + "\n"
+                with open(file_name, 'r', encoding='utf-8') as f: intranet_guide += f.read() + "\n"
             except:
-                with open(file_name, 'r', encoding='cp949') as f:
-                    intranet_guide += f.read() + "\n"
+                with open(file_name, 'r', encoding='cp949') as f: intranet_guide += f.read() + "\n"
         elif file_name.lower().endswith('.pdf'):
             try:
                 reader = PyPDF2.PdfReader(file_name)
@@ -72,24 +67,22 @@ def load_data():
             except: pass
         elif file_name.lower().endswith('.txt') and file_name != "requirements.txt":
             try:
-                with open(file_name, 'r', encoding='utf-8') as f:
-                    general_rules += f.read() + "\n"
+                with open(file_name, 'r', encoding='utf-8') as f: general_rules += f.read() + "\n"
             except:
-                with open(file_name, 'r', encoding='cp949') as f:
-                    general_rules += f.read() + "\n"
+                with open(file_name, 'r', encoding='cp949') as f: general_rules += f.read() + "\n"
     return org_text, general_rules, intranet_guide
 
 ORG_CHART_DATA, COMPANY_RULES, INTRANET_GUIDE = load_data()
 
 # --------------------------------------------------------------------------
-# [2] 외부 연동 (Flow 봇 전용 경로 적용)
+# [2] 외부 연동 (Flow 봇 전용 경로 적용으로 404 에러 해결)
 # --------------------------------------------------------------------------
 try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
     google_secrets = st.secrets["google_sheets"]
     flow_secrets = st.secrets.get("flow", None)
 except Exception as e:
-    st.error(f"🔑 설정 오류: Secrets를 확인하세요. ({e})")
+    st.error(f"🔑 설정 오류: {e}")
     st.stop()
 
 def save_to_sheet(dept, name, rank, category, question, answer, status):
@@ -104,20 +97,18 @@ def save_to_sheet(dept, name, rank, category, question, answer, status):
 def send_flow_alert(category, question, name, dept):
     if not flow_secrets: return False, "Secrets 설정 없음"
     api_key = flow_secrets.get("api_key")
-    # image_6cbc4f에서 확인된 진짜 Project ID "2786111" 적용
-    p_id = flow_secrets.get("flow_room_code", "2786111")
+    # image_6cbc4f에서 확인된 진짜 Project ID "2786111" 고정
+    p_id = flow_secrets.get("flow_room_code", "2786111") 
     
     headers = {"Content-Type": "application/json", "x-flow-api-key": api_key}
     content = f"[🚨 챗봇 민원 알림]\n- 요청자: {name} ({dept})\n- 분류: {category}\n- 내용: {question}\n- 일시: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
 
-    # ★ 404 해결: 봇 권한(createBotPost, createChatMessage)에 특화된 봇 전용 경로 시도
+    # ★ 404 해결의 핵심: 등록하신 createBotPost 및 createChatMessage 권한에 맞는 봇 전용 경로 사용
     endpoints = [
-        # 1. 봇 게시글 작성 경로 (가장 유력)
+        # 1. 봇 게시글 작성 경로 (createBotPost 권한용)
         (f"https://api.flow.team/v1/bots/projects/{p_id}/posts", {"title": "🤖 챗봇 민원 접수", "content": content}),
-        # 2. 봇 채팅 메시지 발송 경로
+        # 2. 봇 채팅 메시지 발송 경로 (createChatMessage 권한용)
         (f"https://api.flow.team/v1/bots/projects/{p_id}/messages", {"content": content}),
-        # 3. 프로젝트 전용 피드 주소 (백업)
-        (f"https://api.flow.team/v1/projects/{p_id}/posts", {"title": "🤖 챗봇 민원 접수", "body": content})
     ]
 
     last_error = ""
@@ -133,7 +124,7 @@ def send_flow_alert(category, question, name, dept):
     return False, last_error
 
 # --------------------------------------------------------------------------
-# [3] UI 및 로직
+# [3] UI 및 로직 (요청하신 답변 지침 반영)
 # --------------------------------------------------------------------------
 if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 
@@ -141,7 +132,7 @@ if not st.session_state["logged_in"]:
     st.header("🔒 임직원 신원 확인")
     with st.form("login"):
         name_input = st.text_input("성명")
-        pw_input = st.text_input("비밀번호 (휴대폰 뒷 4자리)", type="password")
+        pw_input = st.text_input("비밀번호", type="password")
         if st.form_submit_button("접속"):
             if name_input in EMPLOYEE_DB and EMPLOYEE_DB[name_input]["pw"] == pw_input:
                 st.session_state["logged_in"] = True
@@ -153,7 +144,6 @@ else:
     user = st.session_state["user_info"]
     with st.sidebar:
         st.markdown(f"👤 **{user['name']} {user.get('rank','')}**")
-        st.caption(f"🏢 {user.get('dept','')}")
         if st.button("로그아웃"):
             st.session_state.clear()
             st.rerun()
@@ -182,7 +172,7 @@ else:
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.chat_message("user").write(prompt)
 
-        # 시스템 지침: 요청하신 성함 언급 금지 및 안내 문구 수정 반영
+        # 시스템 지침: 요청하신 성함 언급 금지 및 안내 번호 수정 반영
         system_instruction = f"""너는 KCIM의 HR AI 매니저야. 아래 자료를 바탕으로 답변해줘.
         [자료]: {ORG_CHART_DATA} {COMPANY_RULES} {INTRANET_GUIDE}
         
@@ -190,7 +180,7 @@ else:
         2. 답변 시 절대 '이 문제는 HR팀 이경한 매니저에게 문의하셔야...' 같은 문구는 쓰지 마.
         3. 대신 '해당 사안은 담당 부서의 확인이 필요합니다. 내용을 전달하였으니 잠시만 기다려 주세요.'라고 정중히 답해.
         4. 모든 답변 끝에 [CATEGORY:분류명]을 달아줘.
-        5. 안내 전화번호는 02-772-5806이야.
+        5. 상담 안내 번호는 02-772-5806으로 안내해.
         """
         
         try:
