@@ -19,7 +19,6 @@ st.title("🤖 KCIM 사내 민원/문의 챗봇")
 def load_employee_db():
     file_name = 'members.xlsx' 
     db = {}
-    # 관리자용 슈퍼 계정
     db["관리자"] = {"pw": "1234", "dept": "HR팀", "rank": "매니저"}
 
     if os.path.exists(file_name):
@@ -71,19 +70,18 @@ def save_to_sheet(dept, name, rank, question, answer, status):
         sheet = gs_client.open_by_url(sheet_url).worksheet("응답시트")
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        # 순서: [날짜, 부서, 성명, 직급, 질문, 답변, 처리결과]
         sheet.append_row([now, dept, name, rank, question, answer, status]) 
         
     except Exception as e:
         st.error(f"구글 시트 기록 실패: {e}")
 
-# 사용자 의도 파악 (종료 vs 계속)
+# 종료 의도 파악
 def check_finish_intent(user_input):
     try:
         completion = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "사용자가 '네, 없습니다', '종료', '끝', '아니요(더 질문없다는 의미)' 등의 의미로 말하면 'FINISH', '질문 더 있어요', '잠시만요' 등의 의미면 'CONTINUE'라고 답해."},
+                {"role": "system", "content": "사용자가 '네, 없습니다', '종료', '끝', '수고하세요' 등 대화를 끝내는 말이거나, 단순한 인사면 'FINISH'. 질문이 이어지면 'CONTINUE'로 답해."},
                 {"role": "user", "content": user_input}
             ],
             temperature=0
@@ -113,7 +111,6 @@ def login():
             else:
                 st.error("정보가 일치하지 않습니다.")
 
-# 세션 초기화
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 
@@ -131,63 +128,45 @@ else:
     if "messages" not in st.session_state:
         st.session_state["messages"] = [{"role": "assistant", "content": "반갑습니다. KCIM HR/총무 민원 챗봇입니다. 무엇을 도와드릴까요?"}]
     
-    # 상태 관리: 답변 후 종료 확인 대기 중인가?
+    # 상태 관리
     if "awaiting_confirmation" not in st.session_state:
         st.session_state["awaiting_confirmation"] = False
-    
-    # 마지막 대화 내용 임시 저장소
-    if "temp_log" not in st.session_state:
-        st.session_state["temp_log"] = {"q": "", "a": "", "status": ""}
 
-    # 화면에 대화 기록 뿌리기
+    # 화면 표시
     for msg in st.session_state.messages:
         st.chat_message(msg["role"]).write(msg["content"])
 
-    # 사용자 입력 처리
+    # 입력 처리
     if prompt := st.chat_input("내용을 입력하세요"):
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.chat_message("user").write(prompt)
 
-        # [CASE 1] "더 민원이 없으십니까?"에 대한 답변인 경우
+        # [CASE 1] "더 민원 없으신가요?"에 대한 대답 처리
         if st.session_state["awaiting_confirmation"]:
             intent = check_finish_intent(prompt)
             
-            # 이전 대화 내용 가져오기
-            last_q = st.session_state["temp_log"]["q"]
-            last_a = st.session_state["temp_log"]["a"]
-            last_status = st.session_state["temp_log"]["status"]
-
             if intent == "FINISH":
-                # 사용자가 "없습니다(종료)" 선택 -> 시트에 저장하고 종료
-                save_to_sheet(user['dept'], user['name'], user['rank'], last_q, last_a, last_status)
-                
-                end_msg = "감사합니다. 상담 내용이 기록되었습니다. 챗봇을 종료하거나 새로운 질문을 입력해주세요."
+                # 종료 멘트만 날리고 끝 (저장은 이미 되어있음)
+                end_msg = "감사합니다. 상담을 종료합니다. 오늘도 좋은 하루 되세요!"
                 st.session_state.messages.append({"role": "assistant", "content": end_msg})
                 st.chat_message("assistant").write(end_msg)
                 
-                # 상태 초기화
                 st.session_state["awaiting_confirmation"] = False
-                st.session_state["temp_log"] = {}
-                
+                st.stop() # 여기서 코드 중단
             else:
-                # 사용자가 "아니요, 더 있어요" 선택 -> 이전 건은 저장하되, 새로운 질문으로 간주하고 계속 진행
-                save_to_sheet(user['dept'], user['name'], user['rank'], last_q, last_a, last_status)
-                
-                # 상태 해제 후 아래 [CASE 2] 로직을 타게 함 (바로 답변 생성)
+                # "아니요 질문 있어요" -> 계속 진행 (상태 해제하고 아래 로직으로)
                 st.session_state["awaiting_confirmation"] = False
 
-        # [CASE 2] 일반 질문 처리 (확인 대기 상태가 아니거나, "더 있어요"라고 한 뒤)
+        # [CASE 2] 질문 처리 및 즉시 저장
         if not st.session_state["awaiting_confirmation"]:
-            # AI 시스템 프롬프트 (여기가 핵심!)
+            # AI 답변 생성
             system_instruction = """
             너는 KCIM의 HR/총무 AI 매니저야.
             임직원 질문에 대해 규정에 따라 답변하되, 질문의 성격에 따라 답변 맨 앞에 태그를 붙여야 해.
             
             [태그 규칙]
             1. [ACTION]: 시설 고장, 수리 요청, 청소, 비품 파손 등 현장 확인이나 물리적 조치가 필요한 경우.
-               - 답변 예시: "[ACTION] 접수되었습니다. 시설 담당자가 현장을 확인하고 조치하겠습니다."
-            2. [INFO]: 단순 규정 문의, 절차 안내, 정보 제공 등 말이나 텍스트로 해결 가능한 경우.
-               - 답변 예시: "[INFO] 법인차량은 그룹웨어에서 신청 가능하며, 키는 3층에서 수령합니다."
+            2. [INFO]: 단순 규정 문의, 절차 안내, 정보 제공 등 AI가 텍스트로 해결 가능한 경우.
             
             [사내 규정 데이터]
             1. 법인차량: 그룹웨어 신청, 본사 3층 경영지원팀 키 수령, 운행일지 필수.
@@ -203,25 +182,24 @@ else:
                 )
                 raw_response = completion.choices[0].message.content
             except Exception as e:
-                raw_response = "[INFO] 오류가 발생했습니다."
+                raw_response = "[INFO] 시스템 오류가 발생했습니다."
 
-            # 태그 분석 및 처리결과 결정
+            # 태그 처리
             if "[ACTION]" in raw_response:
-                final_status = "담당자확인필요"  # 물리적 조치가 필요한 경우
+                final_status = "담당자확인필요"
                 clean_response = raw_response.replace("[ACTION]", "").strip()
             else:
-                final_status = "처리완료"      # AI 선에서 해결된 경우
+                final_status = "처리완료"
                 clean_response = raw_response.replace("[INFO]", "").strip()
 
-            # 답변 출력 (태그 뗀 버전)
+            # ★ [핵심 변경] 답변을 생성하자마자 엑셀에 저장해버립니다!
+            # 사용자가 창을 닫아도 이미 기록은 남습니다.
+            save_to_sheet(user['dept'], user['name'], user['rank'], prompt, clean_response, final_status)
+
+            # 답변 출력
             full_response = clean_response + "\n\n**더 이상의 민원은 없으실까요?**"
             st.session_state.messages.append({"role": "assistant", "content": full_response})
             st.chat_message("assistant").write(full_response)
 
-            # 임시 저장 (사용자가 "없습니다" 할 때까지 대기)
-            st.session_state["temp_log"] = {
-                "q": prompt,
-                "a": clean_response,
-                "status": final_status
-            }
+            # 종료 확인 대기 모드로 진입
             st.session_state["awaiting_confirmation"] = True
