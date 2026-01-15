@@ -20,7 +20,7 @@ st.title("🤖 KCIM 사내 민원/문의 챗봇")
 def load_employee_db():
     file_name = 'members.xlsx' 
     db = {}
-    # 요청하신 상담 안내 번호 업데이트 완료
+    # 요청하신 상담 안내 번호 업데이트 (02-772-5806)
     db["관리자"] = {"pw": "1323", "dept": "HR팀", "rank": "매니저", "tel": "02-772-5806"}
     if os.path.exists(file_name):
         try:
@@ -41,7 +41,7 @@ def load_employee_db():
 EMPLOYEE_DB = load_employee_db()
 
 # --------------------------------------------------------------------------
-# [2] 외부 연동 (Flow 404 에러 정면 돌파 로직)
+# [2] 외부 연동 (Flow 관리자 API 표준 주소 적용으로 404 정면 돌파)
 # --------------------------------------------------------------------------
 try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
@@ -59,15 +59,13 @@ def send_flow_alert(category, question, name, dept):
     headers = {"Content-Type": "application/json", "x-flow-api-key": api_key}
     content = f"[🚨 챗봇 민원 알림]\n- 요청자: {name} ({dept})\n- 분류: {category}\n- 내용: {question}"
 
-    # ★ 404 해결의 핵심: 'createPost'와 'createChatMessage' 동작에 맞는 표준 경로 시도
-    # 플로우 관리자 API는 경로 뒤에 ID를 붙이지 않고 본문 데이터로 구분하는 경우가 많습니다.
+    # ★ 404 해결의 핵심: 등록하신 동작(OperationID)에 맞는 '표준 주소' 사용
+    # 주소 뒤에 ID를 붙이지 않고, 본문(JSON) 데이터 안에 코드를 넣어 보냅니다.
     attempts = [
-        # 1. 게시글 작성 (OperationID: createPost) - 표준 경로
+        # 1. 게시글 작성 (OperationID: createPost)
         ("https://api.flow.team/v1/posts", {"project_code": p_id, "title": "🤖 챗봇 민원 접수", "body": content}),
-        # 2. 채팅 메시지 전송 (OperationID: createChatMessage) - 표준 경로
-        ("https://api.flow.team/v1/messages", {"room_code": p_id, "content": content}),
-        # 3. 프로젝트별 게시글 경로 (하위 버전 호환용)
-        (f"https://api.flow.team/v1/projects/{p_id}/posts", {"title": "🤖 챗봇 민원 접수", "body": content})
+        # 2. 채팅 메시지 전송 (OperationID: createChatMessage)
+        ("https://api.flow.team/v1/messages", {"room_code": p_id, "content": content})
     ]
 
     last_error = ""
@@ -79,10 +77,11 @@ def send_flow_alert(category, question, name, dept):
             last_error = f"{res.status_code}: {res.text}"
         except Exception as e:
             last_error = str(e)
+            continue
     return False, last_error
 
 # --------------------------------------------------------------------------
-# [3] UI 및 로직
+# [3] UI 및 로직 (성함 언급 금지 지침 반영)
 # --------------------------------------------------------------------------
 if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 
@@ -127,9 +126,9 @@ else:
         st.chat_message("user").write(prompt)
 
         # 지침: '이경한 매니저' 언급 금지 및 상담 번호 반영
-        sys_msg = f"""너는 KCIM의 HR AI 매니저야. 
+        sys_msg = f"""너는 KCIM의 HR AI 매니저야. 아래 자료를 참고해.
         1. 시설/수리 관련 질문에는 반드시 [ACTION] 태그를 붙여.
-        2. 답변 시 절대 '이경한 매니저'라는 성함을 언급하며 책임을 떠넘기지 마. 
+        2. 답변 시 절대 '이경한 매니저'라는 성함을 직접 언급하지 마.
         3. 대신 '해당 사안은 담당 부서의 확인이 필요합니다. 내용을 전달하였으니 잠시만 기다려 주세요.'라고 정중히 답해.
         4. 모든 답변 끝에 [CATEGORY:분류]를 달아줘.
         5. 상담 안내 번호는 반드시 02-772-5806으로 안내해.
