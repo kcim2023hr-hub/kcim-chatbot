@@ -30,10 +30,11 @@ def get_target_project_code():
         res = requests.get(url, headers=headers, params=params)
         if res.status_code == 200:
             data = res.json()
+            # response -> data -> projects -> projects 계층 파고들기
             p_data = data.get('response', {}).get('data', {}).get('projects', {})
             p_list = p_data.get('projects', [])
             
-            # 매니저님의 실제 프로젝트 이름으로 검색
+            # 매니저님의 실제 프로젝트 이름으로 검색 (image_78968b 확인 결과)
             for p in p_list:
                 p_name = str(p.get('name'))
                 if "[민원챗봇] 수신전용프로젝트" in p_name:
