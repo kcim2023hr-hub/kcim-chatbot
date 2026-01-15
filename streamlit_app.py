@@ -14,7 +14,7 @@ st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢")
 st.title("🤖 KCIM 사내 민원/문의 챗봇")
 
 # --------------------------------------------------------------------------
-# [1] 데이터 및 사용자 DB 로드 (02-772-5806 반영)
+# [1] 데이터 로드 (전화번호 02-772-5806 반영)
 # --------------------------------------------------------------------------
 @st.cache_data
 def load_employee_db():
@@ -41,7 +41,7 @@ def load_employee_db():
 EMPLOYEE_DB = load_employee_db()
 
 # --------------------------------------------------------------------------
-# [2] 외부 연동 (Flow 관리자 API 표준 규격 적용 - 200 OK 보장 로직)
+# [2] 외부 연동 (Flow 관리자 API 표준 규격 적용 - 404 해결)
 # --------------------------------------------------------------------------
 try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
@@ -59,8 +59,8 @@ def send_flow_alert(category, question, name, dept):
     headers = {"Content-Type": "application/json", "x-flow-api-key": api_key}
     content = f"[🚨 챗봇 민원 알림]\n- 요청자: {name} ({dept})\n- 분류: {category}\n- 내용: {question}"
 
-    # ★ 404 해결의 마침표: 관리자 API 'createPost' 동작은 반드시 이 주소여야 합니다.
-    # 주소 뒤에 프로젝트 번호를 붙이지 않는 것이 관리자 API의 핵심 규격입니다.
+    # ★ 404 해결의 핵심: 관리자 API 표준 엔드포인트 사용
+    # 주소 뒤에 프로젝트 번호를 붙이지 않는 것이 핵심 규격입니다.
     attempts = [
         # 1. 게시글 작성 (OperationID: createPost)
         ("https://api.flow.team/v1/posts", {"project_code": p_id, "title": "🤖 챗봇 민원 접수", "body": content}),
@@ -106,7 +106,7 @@ else:
             st.divider()
             st.markdown("### 🛠️ 관리자 도구")
             
-            # 200 OK 성공 이력이 있는 진단 도구
+            # 연결 확인용 버튼 (이미 200 OK 성공 이력 있음)
             if st.button("🔍 API 키 진단 (Project List)"):
                 headers = {"x-flow-api-key": flow_secrets.get("api_key")}
                 res = requests.get("https://api.flow.team/v1/projects", headers=headers)
@@ -127,7 +127,7 @@ else:
 
     st.markdown(f"### 👋 안녕하세요, {user['name']}님!")
     if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "assistant", "content": "반갑습니다! 👋 **복지, 규정, 불편사항** 등 궁금한 점을 물어보세요."}]
+        st.session_state.messages = [{"role": "assistant", "content": "반갑습니다! 👋 궁금한 점이 있으시면 언제든 물어보세요."}]
 
     for msg in st.session_state.messages: st.chat_message(msg["role"]).write(msg["content"])
 
@@ -135,8 +135,8 @@ else:
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.chat_message("user").write(prompt)
 
-        # 지침: 성함 언급 금지 및 상담 번호 반영
-        sys_msg = f"""너는 KCIM의 HR AI 매니저야. 
+        # 지침: '이경한 매니저' 성함 언급 절대 금지 및 상담 번호 반영
+        sys_msg = f"""너는 KCIM의 HR AI 매니저야.
         1. 시설/수리 관련 질문에는 반드시 [ACTION] 태그를 붙여.
         2. 답변 시 절대 성함을 직접 언급하지 마. 
         3. 대신 '해당 사안은 담당 부서의 확인이 필요합니다. 내용을 전달하였으니 잠시만 기다려 주세요.'라고 정중히 답해.
