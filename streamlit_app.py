@@ -111,7 +111,7 @@ def load_data():
     for file_name in os.listdir('.'):
         if "org" in file_name.lower() or "조직도" in file_name.lower():
             try:
-                with open(file_name, 'r', encoding='utf-8') as f: org_text += f.read() + "\n"
+                with open(file_name, 'r', encoding='utf-8') as f: org_text += f.read()  + "\n"
             except:
                 with open(file_name, 'r', encoding='cp949') as f: org_text += f.read() + "\n"
         elif "intranet" in file_name.lower() and file_name.endswith('.txt'):
@@ -192,9 +192,12 @@ if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 
 # [로그인 화면]
 if not st.session_state["logged_in"]:
-    # 타이틀을 카드형 박스 안으로 이동
+    # 흰색 카드형 박스 시작
     st.markdown("<div class='custom-card'>", unsafe_allow_html=True)
-    st.markdown("<h2 style='text-align: center; color: #333; margin-bottom: 20px;'>🏢 KCIM 임직원 민원 챗봇</h2>", unsafe_allow_html=True)
+    
+    # [수정] 박스 내부에 타이틀 삽입 및 문구 변경
+    st.markdown("<h2 style='text-align: center; color: #1a1c1e; margin-bottom: 25px;'>🏢 KCIM 임직원 민원 챗봇</h2>", unsafe_allow_html=True)
+    
     st.subheader("🔒 임직원 신원확인")
     with st.form("login_form"):
         input_name = st.text_input("성명", placeholder="이름을 입력하세요")
@@ -246,7 +249,7 @@ else:
         """
         st.session_state["messages"] = [{"role": "assistant", "content": greeting_html, "is_html": True}]
     
-    # 메시지 표시 및 채팅 입력 로직 (기존 유지)
+    # 메시지 표시 및 채팅 입력 로직
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             if msg.get("is_html"): st.markdown(msg["content"], unsafe_allow_html=True)
@@ -256,8 +259,8 @@ else:
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.write(prompt)
 
-        # 시스템 지침 및 답변 생성 (기존 로직 유지)
-        system_instruction = f""" 너는 1990년 창립된 KCIM의 전문 HR 매니저야. {user['name']}님에게 정중하게 답변해줘. [사내 데이터] {ORG_CHART_DATA} {COMPANY_RULES} {INTRANET_GUIDE} {WORK_DISTRIBUTION} [원칙] 1. 번호: 02-772-5806. 2. 호칭: 성함+매니저/책임. 3. 시설/차량/숙소: 이경한 매니저 안내 및 [ACTION] 태그. 4. 태그: [CATEGORY:분류명] (이미지 카테고리 활용) """
+        # 시스템 지침 및 답변 생성
+        system_instruction = f""" 너는 1990년 창립된 KCIM의 전문 HR 매니저야 [cite: 2026-01-02]. {user['name']}님에게 정중하게 답변해줘. [사내 데이터] {ORG_CHART_DATA} {COMPANY_RULES} {INTRANET_GUIDE} {WORK_DISTRIBUTION} [원칙] 1. 번호: 02-772-5806. 2. 호칭: 성함+매니저/책임. 3. 시설/차량/숙소: 이경한 매니저 안내 및 [ACTION] 태그. 4. 태그: [CATEGORY:분류명] (이미지 카테고리 활용) """
         
         try:
             completion = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "system", "content": system_instruction}, {"role": "user", "content": prompt}])
