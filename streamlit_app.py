@@ -3,25 +3,69 @@ from openai import OpenAI
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
-import traceback
+import pandas as pd
 import time
+import os
 
 # 1. 페이지 설정
 st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢")
 st.title("🤖 KCIM 사내 민원/문의 챗봇")
 
 # --------------------------------------------------------------------------
-# [1] 직원 명단 (실제 사용 시 이 부분을 수정하세요)
+# [1] 직원 데이터베이스 로드 (엑셀 파일 자동 연동)
+# 파일명: 구성원(정상)__20260115121840.xlsx - 구성원(정상).csv
 # --------------------------------------------------------------------------
-ALLOWED_USERS = {
-    "관리자": "1234",
-    "홍길동": "240101",
-    "김철수": "240102",
-    "이영희": "240103"
-}
+@st.cache_data  # 매번 파일을 다시 읽지 않도록 캐싱하여 속도 향상
+def load_employee_db():
+    # 업로드해주신 파일명 (정확해야 합니다)
+    file_name = '구성원(정상)__20260115121840.xlsx - 구성원(정상).csv'
+    
+    db = {}
+    
+    # 관리자 계정 (비상용)
+    db["관리자"] = {"pw": "1234", "dept": "HR팀", "rank": "매니저"}
+
+    if os.path.exists(file_name):
+        try:
+            # CSV 파일 읽기 (한글 깨짐 방지 처리)
+            try:
+                df = pd.read_csv(file_name)
+            except UnicodeDecodeError:
+                df = pd.read_csv(file_name, encoding='cp949')
+            
+            # 데이터 정제 및 DB 구축
+            # 엑셀 헤더: [이름, 부서, 직급, 휴대폰 번호] 컬럼 사용
+            for _, row in df.iterrows():
+                name = str(row['이름']).strip()
+                dept = str(row['부서']).strip()
+                rank = str(row['직급']).strip()
+                phone = str(row['휴대폰 번호']).strip()
+                
+                # 휴대폰 번호에서 숫자만 추출하여 뒷 4자리 비밀번호 생성
+                phone_digits = ''.join(filter(str.isdigit, phone))
+                if len(phone_digits) >= 4:
+                    pw = phone_digits[-4:]
+                else:
+                    pw = "0000" # 번호가 없을 경우 기본값
+                
+                # DB에 저장
+                db[name] = {
+                    "pw": pw,
+                    "dept": dept,
+                    "rank": rank
+                }
+        except Exception as e:
+            st.error(f"직원 명단 파일 로드 중 오류 발생: {e}")
+    else:
+        st.warning(f"⚠️ '{file_name}' 파일을 찾을 수 없습니다. 관리자 계정으로만 접속 가능합니다.")
+        
+    return db
+
+# DB 로드 실행
+EMPLOYEE_DB = load_employee_db()
 
 # --------------------------------------------------------------------------
-# [2] 구글 시트 주소 (매니저님의 시트 주소를 넣었습니다)
+# [2] 구글 시트 주소 (기존 주소 유지)
 # --------------------------------------------------------------------------
 sheet_url = "https://docs.google.com/spreadsheets/d/1jckiUzmefqE_PiaSLVHF2kj2vFOIItc3K86_1HPWr_4/edit?gid=1434430603#gid=1434430603"
 
@@ -49,7 +93,6 @@ def save_to_sheet(dept, name, rank, question, answer):
         # 날짜 기록
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        # [수정된 부분] 괄호가 잘리지 않도록 주의하세요!
         # 순서: [날짜, 부서, 성명, 직급, 질문, 답변, 비고]
         sheet.append_row([now, dept, name, rank, question, answer, ""]) 
         
@@ -58,38 +101,41 @@ def save_to_sheet(dept, name, rank, question, answer):
     except Exception as e:
         st.error(f"기록 실패: {e}")
 
-# 4. 로그인 화면
+# 4. 로그인 화면 (자동 인식 버전)
 def login():
     st.header("🔒 임직원 접속 (신원확인)")
-    st.caption("기록 관리를 위해 소속 정보를 정확히 입력해주세요.")
+    st.caption("성명과 휴대폰 번호 뒷 4자리를 입력해주세요.")
     
     with st.form("login_form"):
         col1, col2 = st.columns(2)
-        input_dept = col1.text_input("부서명", placeholder="예: 경영지원팀")
-        input_rank = col2.text_input("직급", placeholder="예: 대리")
-        
-        input_name = st.text_input("성명", placeholder="이름을 입력하세요")
-        input_id = st.text_input("사번 (비밀번호)", type="password")
+        input_name = col1.text_input("성명", placeholder="예: 홍길동")
+        input_pw = col2.text_input("비밀번호 (휴대폰 뒷 4자리)", type="password", placeholder="예: 1234")
         
         submit_button = st.form_submit_button("접속하기")
         
         if submit_button:
-            if not input_dept or not input_rank or not input_name or not input_id:
-                st.warning("모든 정보를 입력해주세요.")
+            if not input_name or not input_pw:
+                st.warning("성명과 비밀번호를 모두 입력해주세요.")
                 return
 
-            if input_name in ALLOWED_USERS and ALLOWED_USERS[input_name] == input_id:
-                st.session_state["logged_in"] = True
-                st.session_state["user_info"] = {
-                    "dept": input_dept,
-                    "name": input_name,
-                    "rank": input_rank
-                }
-                st.success(f"{input_name} {input_rank}님, 환영합니다!")
-                time.sleep(1)
-                st.rerun()
+            # DB에서 확인
+            if input_name in EMPLOYEE_DB:
+                user_data = EMPLOYEE_DB[input_name]
+                if user_data["pw"] == input_pw:
+                    # 로그인 성공 -> 세션에 정보 저장
+                    st.session_state["logged_in"] = True
+                    st.session_state["user_info"] = {
+                        "dept": user_data["dept"],
+                        "name": input_name,
+                        "rank": user_data["rank"]
+                    }
+                    st.success(f"{input_name} {user_data['rank']}님(소속: {user_data['dept']}), 환영합니다!")
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error("비밀번호(휴대폰 뒷 4자리)가 일치하지 않습니다.")
             else:
-                st.error("성명 또는 사번이 일치하지 않습니다.")
+                st.error("등록되지 않은 직원입니다. (관리자에게 문의)")
 
 # 5. 메인 로직
 if "logged_in" not in st.session_state:
