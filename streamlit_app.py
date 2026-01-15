@@ -180,7 +180,7 @@ else:
             st.rerun()
         
         # [요청사항] 로그아웃 버튼 아래 안내 멘트 추가
-        st.markdown("<p class='beta-notice'>이 챗봇은 현재 베타테스트중입니다.<br>오류가 나도 이해해주세요:)</p>", unsafe_allow_html=True)
+        st.markdown("<p class='beta-notice'>※ 이 챗봇은 현재 베타 테스트중입니다.<br>오류가 있어도 이해 바랍니다.:)</p>", unsafe_allow_html=True)
 
     # 메인 인사말 (시간대별 맞춤 문구 적용)
     if not st.session_state.messages:
@@ -202,7 +202,7 @@ else:
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.write(prompt)
         
-        sys_msg = f"""너는 1990년 창립된 KCIM의 HR팀 매니저야. {user['name']}님께 정중히 답변해줘.
+        sys_msg = f"""너는 1990년 창립된 KCIM의 HR팀 팀장이야. {user['name']}님께 정중히 답변해줘.
         아래의 최신 사내 규정 파일 목록을 정확히 참고하여 답변하고, 근거가 되는 파일명을 언급해줘:
         {COMPANY_DOCUMENTS_INFO}
         
