@@ -14,14 +14,14 @@ st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢")
 st.title("🤖 KCIM 사내 민원/문의 챗봇")
 
 # --------------------------------------------------------------------------
-# [1] 데이터 로드 (02-772-5806 업데이트 완료)
+# [1] 데이터 로드 (02-772-5806 반영 완료)
 # --------------------------------------------------------------------------
 
 @st.cache_data
 def load_employee_db():
     file_name = 'members.xlsx' 
     db = {}
-    # 전화번호 수정 반영
+    # 요청하신 전화번호로 수정 완료
     db["관리자"] = {"pw": "1323", "dept": "HR팀", "rank": "매니저", "tel": "02-772-5806"}
     if os.path.exists(file_name):
         try:
@@ -96,38 +96,30 @@ def save_to_sheet(dept, name, rank, category, question, answer, status):
         sheet.append_row([now, dept, name, rank, category, question, answer, status]) 
     except: pass
 
-# ★ [수정] 404 방지를 위해 Post API와 Message API를 통합 시도
 def send_flow_alert(category, question, name, dept):
     if not flow_secrets: return
     api_key = flow_secrets.get("api_key")
     room_code = flow_secrets.get("flow_room_code", "")
-    
     if not room_code: return
 
     headers = {"Content-Type": "application/json", "x-flow-api-key": api_key}
     content = f"[🚨 챗봇 민원 알림]\n- 요청자: {name} ({dept})\n- 분류: {category}\n- 내용: {question}"
 
-    # 프로젝트 게시글로 시도 (가장 권장되는 방식)
+    # 프로젝트 게시글로 전송 시도
     try:
         url = "https://api.flow.team/v1/projects/posts"
         payload = {"project_code": room_code, "title": "🤖 챗봇 민원 접수", "body": content}
         response = requests.post(url, json=payload, headers=headers, timeout=5)
         if response.status_code == 200:
-            st.toast("✅ Flow 알림 성공")
-            return
-    except: pass
-
-    # 게시글 실패 시 메시지로 재시도
-    try:
-        url = "https://api.flow.team/v1/messages/room"
-        payload = {"room_code": room_code, "content": content}
-        requests.post(url, json=payload, headers=headers, timeout=5)
+            st.toast("✅ Flow 알림 전송 완료")
     except: pass
 
 # --------------------------------------------------------------------------
 # [3] UI 및 로직
 # --------------------------------------------------------------------------
 if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
+if "show_room_list" not in st.session_state: st.session_state["show_room_list"] = False
+if "room_data" not in st.session_state: st.session_state["room_data"] = []
 
 if not st.session_state["logged_in"]:
     st.header("🔒 임직원 신원 확인")
@@ -153,26 +145,43 @@ else:
         if user['name'] in ["이경한", "관리자"]:
             st.divider()
             st.markdown("### 🛠️ 관리자 도구")
-            # ★ 진짜 방 번호를 찾아주는 도구 추가
+            # ★ 버튼 클릭 시 세션 상태를 변경하여 메인 화면에 출력
             if st.button("🚀 플로우 방 번호(SRNO) 조회"):
                 try:
                     res = requests.get("https://api.flow.team/v1/projects", headers={"x-flow-api-key": flow_secrets["api_key"]})
                     if res.status_code == 200:
-                        data = res.json().get("list", [])
-                        st.write("아래에서 방 번호를 찾아 Secrets에 넣어주세요:")
-                        for p in data:
-                            st.code(f"방이름: {p.get('TITLE')} -> 번호: {p.get('PROJECT_SRNO')}")
-                    else: st.error("조회 실패 (API 키 확인 필요)")
+                        # 'list' 또는 'result' 키 확인
+                        resp_json = res.json()
+                        st.session_state["room_data"] = resp_json.get("list", resp_json.get("result", []))
+                        st.session_state["show_room_list"] = True
+                    else: st.error(f"조회 실패 (코드: {res.status_code})")
                 except Exception as e: st.error(f"오류: {e}")
 
             with st.expander("📂 파일 현황"):
                 for f in os.listdir('.'):
                     if f.endswith(('.pdf', '.txt')) and f != 'requirements.txt': st.caption(f"- {f}")
 
+    # --- 메인 화면 출력부 ---
+    if st.session_state["show_room_list"]:
+        st.success("🎯 플로우 프로젝트 목록을 가져왔습니다!")
+        if not st.session_state["room_data"]:
+            st.warning("조회된 프로젝트가 없습니다. (권한 또는 API 설정 확인 필요)")
+        else:
+            for p in st.session_state["room_data"]:
+                # TITLE과 PROJECT_SRNO가 있는지 확인
+                title = p.get("TITLE", p.get("project_title", "이름없음"))
+                srno = p.get("PROJECT_SRNO", p.get("project_srno", "ID없음"))
+                st.code(f"방이름: {title}  👉  ID: {srno}")
+        
+        if st.button("❌ 목록 닫기"):
+            st.session_state["show_room_list"] = False
+            st.rerun()
+        st.divider()
+
     st.markdown(f"### 👋 안녕하세요, {user['name']} 매니저님!")
     
     if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "assistant", "content": "반갑습니다! 👋 궁금한 점이 있으시면 언제든 물어보세요."}]
+        st.session_state.messages = [{"role": "assistant", "content": "반갑습니다! 👋 무엇을 도와드릴까요?"}]
 
     for msg in st.session_state.messages:
         st.chat_message(msg["role"]).write(msg["content"])
