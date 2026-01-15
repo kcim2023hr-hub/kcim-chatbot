@@ -46,54 +46,45 @@ def load_employee_db():
 
 EMPLOYEE_DB = load_employee_db()
 
-# 1-2. 사내 규정 로드 (가이드라인 + 모든 파일)
+# 1-2. 조직도 및 규정 로드 (분리 로딩 방식)
 @st.cache_data
-def load_rules():
-    combined_rules = ""
-    guide_content = "" 
+def load_data():
+    org_text = ""
+    general_rules = ""
     
-    # 파일 읽기 시작
     for file_name in os.listdir('.'):
-        # (1) PDF 파일 읽기
+        # 1. 조직도 파일(org_chart.txt) 우선 확보
+        if "org" in file_name.lower() or "조직도" in file_name.lower():
+            if file_name.endswith('.txt'):
+                try:
+                    with open(file_name, 'r', encoding='utf-8') as f:
+                        org_text += f.read() + "\n"
+                except:
+                    with open(file_name, 'r', encoding='cp949') as f:
+                        org_text += f.read() + "\n"
+            continue # 조직도는 별도로 저장했으니 다음 파일로
+
+        # 2. 나머지 PDF 및 TXT 규정 읽기
+        content = ""
         if file_name.lower().endswith('.pdf'):
             try:
                 reader = PyPDF2.PdfReader(file_name)
-                text = ""
                 for page in reader.pages:
                     extracted = page.extract_text()
-                    if extracted:
-                        text += extracted + "\n"
-                combined_rules += f"\n\n--- [규정 파일: {file_name}] ---\n{text}"
-            except Exception as e:
-                print(f"PDF 오류: {file_name} - {e}")
-
-        # (2) TXT 파일 읽기
+                    if extracted: content += extracted + "\n"
+                general_rules += f"\n\n--- [규정: {file_name}] ---\n{content}"
+            except: pass
+        
         elif file_name.lower().endswith('.txt') and file_name != "requirements.txt":
             try:
-                try:
-                    with open(file_name, 'r', encoding='utf-8') as f:
-                        text = f.read()
-                except:
-                    with open(file_name, 'r', encoding='cp949') as f:
-                        text = f.read()
-                
-                if "guide" in file_name.lower():
-                    guide_content += f"\n\n[★ 필독 가이드라인: {file_name}]\n{text}\n"
-                else:
-                    combined_rules += f"\n\n--- [참고 자료: {file_name}] ---\n{text}"
-            except Exception as e:
-                print(f"TXT 오류: {file_name} - {e}")
+                with open(file_name, 'r', encoding='utf-8') as f: content = f.read()
+            except:
+                with open(file_name, 'r', encoding='cp949') as f: content = f.read()
+            general_rules += f"\n\n--- [자료: {file_name}] ---\n{content}"
 
-    final_content = guide_content + combined_rules
-    
-    if not final_content:
-        return "등록된 규정 파일이 없습니다."
-    else:
-        # 너무 길 경우를 대비해 길이 로그 출력 (관리자용)
-        print(f"총 규정 길이: {len(final_content)} 자")
-        return final_content
+    return org_text, general_rules
 
-COMPANY_RULES = load_rules()
+ORG_CHART_DATA, COMPANY_RULES = load_data()
 
 # --------------------------------------------------------------------------
 # [2] 구글 시트 및 OpenAI 설정
@@ -120,11 +111,10 @@ def save_to_sheet(dept, name, rank, question, answer, status):
 
 def check_finish_intent(user_input):
     try:
-        # 모델 변경: gpt-4o-mini
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "사용자가 '네, 없습니다', '종료', '끝', '수고하세요' 등 대화를 끝내는 말이거나, 단순한 인사면 'FINISH'. 질문이 이어지면 'CONTINUE'로 답해."},
+                {"role": "system", "content": "사용자가 '네, 없습니다', '종료', '끝' 등 대화를 끝내는 의도면 'FINISH', 질문이 이어지면 'CONTINUE'로 답해."},
                 {"role": "user", "content": user_input}
             ],
             temperature=0
@@ -161,14 +151,29 @@ if not st.session_state["logged_in"]:
     login()
 else:
     user = st.session_state["user_info"]
-    st.markdown(f"👤 **{user['dept']} | {user['name']} {user['rank']}**님")
-    if st.button("로그아웃"):
-        st.session_state.clear()
-        st.rerun()
-    st.divider()
+    
+    # 사이드바에 디버그용 정보 표시 (관리자만 확인 가능하게)
+    with st.sidebar:
+        st.markdown(f"👤 **{user['name']} {user['rank']}**")
+        st.markdown(f"🏢 **{user['dept']}**")
+        if st.button("로그아웃"):
+            st.session_state.clear()
+            st.rerun()
+        
+        st.divider()
+        with st.expander("🛠️ 관리자용 데이터 확인"):
+            st.write("▼ 조직도 로드 상태")
+            if ORG_CHART_DATA:
+                st.success("조직도(org_chart.txt) 로드 성공")
+                st.text(ORG_CHART_DATA[:200] + "...") # 앞부분만 살짝 보여줌
+            else:
+                st.error("조직도 파일이 없습니다!")
+
+    st.markdown(f"### 👋 안녕하세요, {user['name']} {user['rank']}님!")
+    st.markdown("무엇을 도와드릴까요?")
 
     if "messages" not in st.session_state:
-        st.session_state["messages"] = [{"role": "assistant", "content": "반갑습니다. KCIM HR/총무 민원 챗봇입니다. 무엇을 도와드릴까요?"}]
+        st.session_state["messages"] = [{"role": "assistant", "content": "규정이나 결재 관련 궁금한 점이 있으신가요?"}]
     
     if "awaiting_confirmation" not in st.session_state:
         st.session_state["awaiting_confirmation"] = False
@@ -192,23 +197,34 @@ else:
             else:
                 st.session_state["awaiting_confirmation"] = False
 
-        # [CASE 2] 질문 처리 (가이드라인 우선 적용)
+        # [CASE 2] 답변 생성
         if not st.session_state["awaiting_confirmation"]:
+            
+            # ★ 강력해진 프롬프트: 조직도를 최우선으로 참고하라고 명령
             system_instruction = f"""
             너는 KCIM의 HR/총무 AI 매니저야.
-            임직원의 질문에 대해 아래 [제공된 사내 자료]를 바탕으로 명확하게 답변해줘.
             
-            [제공된 사내 자료]
+            [질문자 프로필]
+            - 이름: {user['name']}
+            - 부서: {user['dept']}
+            - 직급: {user['rank']}
+            
+            [★ 핵심 데이터: 조직도 및 결재권자]
+            (아래 내용에서 질문자의 부서를 찾아 결재권자 실명을 반드시 확인해)
+            {ORG_CHART_DATA}
+            
+            [참고 자료: 사내 규정]
             {COMPANY_RULES}
             
-            [답변 규칙]
-            1. '필독 가이드라인'을 먼저 참고하여 사용자의 질문 키워드와 관련된 파일 내용을 찾아 답변해.
-            2. 자료에 없는 내용이거나, 현장 조치가 필요한 질문은 [ACTION] 태그를 붙여.
-            3. 자료로 설명 가능한 질문은 [INFO] 태그를 붙여.
+            [답변 가이드]
+            1. '결재', '승인', '누구한테' 같은 질문이 나오면 무조건 [핵심 데이터: 조직도]를 먼저 봐.
+            2. 질문자가 속한 팀/그룹을 찾고, 그 조직의 책임자(팀장/그룹장) 이름을 콕 집어서 답변해.
+               (예: "이경한 님은 HR팀이므로 김병찬 팀장님 전결입니다.")
+            3. 만약 조직도에 이름이 없다면 규정대로 직책(팀장 등)만 안내해.
+            4. 현장 조치가 필요하면 [ACTION], 아니면 [INFO] 태그를 붙여.
             """
             
             try:
-                # ★ 모델 변경: gpt-4o-mini (대용량 처리에 강함)
                 completion = client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[{"role": "system", "content": system_instruction}, {"role": "user", "content": prompt}]
@@ -216,9 +232,8 @@ else:
                 raw_response = completion.choices[0].message.content
             
             except Exception as e:
-                # ★ 에러 발생 시 원인을 화면에 출력 (디버깅용)
-                st.error(f"🚨 시스템 오류 발생: {e}")
-                raw_response = "[INFO] 죄송합니다. 내부 오류로 답변을 생성할 수 없습니다."
+                st.error(f"오류: {e}")
+                raw_response = "[INFO] 오류가 발생했습니다."
 
             if "[ACTION]" in raw_response:
                 final_status = "담당자확인필요"
