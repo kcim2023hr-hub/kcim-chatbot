@@ -3,6 +3,7 @@ from openai import OpenAI
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
+import traceback
 
 # 1. 페이지 설정
 st.set_page_config(page_title="KICM 민원 챗봇", page_icon="🤖")
@@ -18,27 +19,34 @@ except Exception as e:
     st.stop()
 
 # --------------------------------------------------------------------------
-# [수정 포인트] 따옴표("") 안에 엑셀 주소를 넣어야 합니다!
-# 실수하지 않도록 제가 따옴표를 미리 적어두었습니다.
+# [필수] 여기에 구글 시트 주소 전체를 붙여넣으세요!
 # --------------------------------------------------------------------------
 sheet_url = "https://docs.google.com/spreadsheets/d/1jckiUzmefqE_PiaSLVHF2kj2vFOIItc3K86_1HPWr_4/edit?gid=1434430603#gid=1434430603" 
 
-# 3. 구글 시트 연결 함수
+# 3. 구글 시트 연결 함수 (이름으로 찾기 & 칸 맞추기)
 def save_to_sheet(question, answer):
     try:
-        scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+        scope = [
+            'https://www.googleapis.com/auth/spreadsheets',
+            'https://www.googleapis.com/auth/drive'
+        ]
         creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(google_secrets), scope)
         gs_client = gspread.authorize(creds)
         
-        # URL로 시트 찾기
-        sheet = gs_client.open_by_url(sheet_url).sheet1
+        # [수정 1] 매니저님이 정하신 "응답시트"라는 이름을 정확히 찾아갑니다.
+        sheet = gs_client.open_by_url(sheet_url).worksheet("응답시트")
         
-        # 기록
+        # [수정 2] 엑셀 헤더 순서(날짜, 요청자, 질문, 답변, 결과)에 맞춰서 저장합니다.
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        sheet.append_row([now, question, answer])
+        
+        # 저장 순서: [A열:날짜, B열:빈칸(요청자), C열:질문, D열:답변, E열:빈칸(처리결과)]
+        sheet.append_row([now, "", question, answer, ""]) 
+        
+        print("✅ 구글 시트 저장 완료")
         
     except Exception as e:
         st.error(f"구글 시트 저장 실패: {e}")
+        st.text(traceback.format_exc())
 
 # 4. 챗봇 로직
 if "messages" not in st.session_state:
