@@ -152,7 +152,7 @@ if not st.session_state["logged_in"]:
 else:
     user = st.session_state["user_info"]
     
-    # 사이드바에 디버그용 정보 표시 (관리자만 확인 가능하게)
+    # 사이드바 설정
     with st.sidebar:
         st.markdown(f"👤 **{user['name']} {user['rank']}**")
         st.markdown(f"🏢 **{user['dept']}**")
@@ -160,14 +160,16 @@ else:
             st.session_state.clear()
             st.rerun()
         
-        st.divider()
-        with st.expander("🛠️ 관리자용 데이터 확인"):
-            st.write("▼ 조직도 로드 상태")
-            if ORG_CHART_DATA:
-                st.success("조직도(org_chart.txt) 로드 성공")
-                st.text(ORG_CHART_DATA[:200] + "...") # 앞부분만 살짝 보여줌
-            else:
-                st.error("조직도 파일이 없습니다!")
+        # ★ 보안 업데이트: 이경한 매니저님과 관리자만 디버그 메뉴를 볼 수 있음
+        if user['name'] == "이경한" or user['name'] == "관리자":
+            st.divider()
+            with st.expander("🛠️ 관리자용 데이터 확인"):
+                st.write("▼ 조직도 로드 상태")
+                if ORG_CHART_DATA:
+                    st.success("조직도(org_chart.txt) 로드 성공")
+                    st.text(ORG_CHART_DATA[:200] + "...") 
+                else:
+                    st.error("조직도 파일이 없습니다!")
 
     st.markdown(f"### 👋 안녕하세요, {user['name']} {user['rank']}님!")
     st.markdown("무엇을 도와드릴까요?")
@@ -200,7 +202,6 @@ else:
         # [CASE 2] 답변 생성
         if not st.session_state["awaiting_confirmation"]:
             
-            # ★ 강력해진 프롬프트: 조직도를 최우선으로 참고하라고 명령
             system_instruction = f"""
             너는 KCIM의 HR/총무 AI 매니저야.
             
