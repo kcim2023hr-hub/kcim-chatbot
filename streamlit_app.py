@@ -41,7 +41,7 @@ def load_employee_db():
 EMPLOYEE_DB = load_employee_db()
 
 # --------------------------------------------------------------------------
-# [2] 외부 연동 (Flow 관리자 API 표준 규격 적용 - 404 해결 핵심)
+# [2] 외부 연동 (Flow 관리자 API 표준 규격 적용 - 200 OK 보장 로직)
 # --------------------------------------------------------------------------
 try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
@@ -54,13 +54,13 @@ except Exception as e:
 def send_flow_alert(category, question, name, dept):
     if not flow_secrets: return False, "Secrets 설정 누락"
     api_key = flow_secrets.get("api_key")
-    p_id = "2786111" # image_6cbc4f에서 확인된 ID
+    p_id = "2786111" # 확인된 프로젝트 ID
     
     headers = {"Content-Type": "application/json", "x-flow-api-key": api_key}
     content = f"[🚨 챗봇 민원 알림]\n- 요청자: {name} ({dept})\n- 분류: {category}\n- 내용: {question}"
 
     # ★ 404 해결의 마침표: 관리자 API 'createPost' 동작은 반드시 이 주소여야 합니다.
-    # 주소에 프로젝트 번호를 붙이지 않고, 본문(JSON) 데이터 안에 project_code를 넣어 보냅니다.
+    # 주소 뒤에 프로젝트 번호를 붙이지 않는 것이 관리자 API의 핵심 규격입니다.
     attempts = [
         # 1. 게시글 작성 (OperationID: createPost)
         ("https://api.flow.team/v1/posts", {"project_code": p_id, "title": "🤖 챗봇 민원 접수", "body": content}),
@@ -105,8 +105,18 @@ else:
         if user['name'] in ["이경한", "관리자"]:
             st.divider()
             st.markdown("### 🛠️ 관리자 도구")
+            
+            # 200 OK 성공 이력이 있는 진단 도구
+            if st.button("🔍 API 키 진단 (Project List)"):
+                headers = {"x-flow-api-key": flow_secrets.get("api_key")}
+                res = requests.get("https://api.flow.team/v1/projects", headers=headers)
+                if res.status_code == 200:
+                    st.success("연결 성공! (200 OK)")
+                    st.json(res.json())
+                else: st.error(f"진단 실패: {res.status_code}")
+
             if st.button("🔔 Flow 연동 테스트"):
-                with st.status("플로우 관리자 API 전송 시도 중...") as status:
+                with st.status("플로우 API 전송 시도 중...") as status:
                     success, msg = send_flow_alert("테스트", "시스템 연동 테스트 메시지입니다.", user['name'], user['dept'])
                     if success:
                         status.update(label="✅ 전송 성공!", state="complete")
@@ -117,7 +127,7 @@ else:
 
     st.markdown(f"### 👋 안녕하세요, {user['name']}님!")
     if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "assistant", "content": "반갑습니다! 👋 무엇을 도와드릴까요?"}]
+        st.session_state.messages = [{"role": "assistant", "content": "반갑습니다! 👋 **복지, 규정, 불편사항** 등 궁금한 점을 물어보세요."}]
 
     for msg in st.session_state.messages: st.chat_message(msg["role"]).write(msg["content"])
 
@@ -125,10 +135,10 @@ else:
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.chat_message("user").write(prompt)
 
-        # 지침: '이경한 매니저' 성함 언급 절대 금지 및 상담 번호 반영
-        sys_msg = f"""너는 KCIM의 HR AI 매니저야.
+        # 지침: 성함 언급 금지 및 상담 번호 반영
+        sys_msg = f"""너는 KCIM의 HR AI 매니저야. 
         1. 시설/수리 관련 질문에는 반드시 [ACTION] 태그를 붙여.
-        2. 답변 시 절대 '이경한 매니저'라는 성함을 직접 언급하지 마. 
+        2. 답변 시 절대 성함을 직접 언급하지 마. 
         3. 대신 '해당 사안은 담당 부서의 확인이 필요합니다. 내용을 전달하였으니 잠시만 기다려 주세요.'라고 정중히 답해.
         4. 모든 답변 끝에 [CATEGORY:분류]를 달아줘.
         5. 상담 안내 번호는 반드시 02-772-5806으로 안내해.
