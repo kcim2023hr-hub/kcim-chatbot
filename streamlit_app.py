@@ -21,7 +21,7 @@ st.title("🤖 KCIM 사내 민원/문의 챗봇")
 def load_employee_db():
     file_name = 'members.xlsx' 
     db = {}
-    # 관리자 정보 및 전화번호 업데이트 (02-772-5806)
+    # 요청하신 전화번호로 업데이트 완료 (02-772-5806)
     db["관리자"] = {"pw": "1323", "dept": "HR팀", "rank": "매니저", "tel": "02-772-5806"}
     if os.path.exists(file_name):
         try:
@@ -99,33 +99,34 @@ def save_to_sheet(dept, name, rank, category, question, answer, status):
 def send_flow_alert(category, question, name, dept):
     if not flow_secrets: return
     api_key = flow_secrets.get("api_key")
-    # 매니저님이 찾으신 고유 ID 사용
+    # 매니저님의 BFLOW ID 적용 완료
     room_code = flow_secrets.get("flow_room_code", "BFLOW_211214145658")
     
     headers = {"Content-Type": "application/json", "x-flow-api-key": api_key}
     icon = "🚨" if "시설" in category else "📢"
     
-    # 404 방지를 위해 게시글(Post) 생성 API를 기본으로 사용
+    # 404 해결을 위한 게시글(Post) 전송 주소
     url = "https://api.flow.team/v1/projects/posts"
+    
     payload = {
         "project_code": room_code,
-        "title": f"[{icon} 챗봇 민원 접수] {name}님",
-        "body": f"- 분류: {category}\n- 요청자: {name} ({dept})\n- 내용: {question}\n- 일시: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        "title": f"[{icon} 챗봇 민원 알림]",
+        "body": f"요청자: {name} ({dept})\n분류: {category}\n내용: {question}\n일시: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
     }
     
     try:
+        # 1순위: 게시글 등록 시도
         response = requests.post(url, json=payload, headers=headers, timeout=5)
         if response.status_code == 200:
-            st.toast("✅ Flow 프로젝트에 민원이 접수되었습니다.")
+            st.toast("✅ Flow 프로젝트에 민원글이 등록되었습니다.")
         else:
-            # 실패 시 일반 메시지(Room) 주소로도 전송 시도
+            # 2순위: 실패 시 일반 메시지 전송 시도
             backup_url = "https://api.flow.team/v1/messages/room"
-            backup_payload = {"room_code": room_code, "content": payload["body"]}
-            requests.post(backup_url, json=backup_payload, headers=headers, timeout=5)
+            requests.post(backup_url, json={"room_code": room_code, "content": payload["body"]}, headers=headers, timeout=5)
     except: pass
 
 # --------------------------------------------------------------------------
-# [3] 메인 화면 및 로그인
+# [3] 메인 화면 및 UI
 # --------------------------------------------------------------------------
 if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 
@@ -143,7 +144,6 @@ if not st.session_state["logged_in"]:
             else: st.error("정보가 일치하지 않습니다.")
 else:
     user = st.session_state["user_info"]
-    
     with st.sidebar:
         st.markdown(f"👤 **{user['name']} {user.get('rank','')}**")
         st.caption(f"🏢 {user.get('dept','')}")
@@ -154,22 +154,10 @@ else:
         if user['name'] in ["이경한", "관리자"]:
             st.divider()
             st.markdown("### 🛠️ 관리자 도구")
-            with st.expander("📂 시스템 파일 현황", expanded=False):
+            with st.expander("📂 시스템 파일 현황"):
                 all_files = sorted(os.listdir('.'))
-                pdfs = [f for f in all_files if f.lower().endswith('.pdf')]
-                txts = [f for f in all_files if f.lower().endswith('.txt') and f != 'requirements.txt']
-                if pdfs:
-                    st.markdown("**📄 규정 문서 (PDF)**")
-                    for f in pdfs: st.caption(f"- {f}")
-                if txts:
-                    st.markdown("**📝 텍스트 데이터 (TXT)**")
-                    for f in txts: st.caption(f"- {f}")
-            
-            with st.expander("👀 데이터 로드 상태 확인", expanded=False):
-                st.write("✅ [1] 조직도 데이터")
-                st.text(ORG_CHART_DATA[:50] + "...")
-                st.write("✅ [2] 인트라넷 가이드")
-                st.text(INTRANET_GUIDE[:50] + "...")
+                for f in all_files:
+                    if f.endswith(('.pdf', '.txt')) and f != 'requirements.txt': st.caption(f"- {f}")
 
     st.markdown(f"### 👋 안녕하세요, {user['name']} {user.get('rank','')}님!")
     
@@ -183,15 +171,13 @@ else:
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.chat_message("user").write(prompt)
 
-        # 시스템 지침 수정: 특정 문구 제거 및 정확한 전화번호 부여
         system_instruction = f"""너는 KCIM의 HR/총무 매니저야. 아래 자료를 바탕으로 답변해줘.
         [조직도]: {ORG_CHART_DATA} [규정]: {COMPANY_RULES} [인트라넷 가이드]: {INTRANET_GUIDE}
         
-        1. 시설/환경/수리 관련 질문이나 답변이 불가능한 전문적인 내용은 [ACTION] 태그를 붙여. 
-           (단, "이 문제는 HR팀 이경한 매니저에게 문의하셔야..."라는 문구는 절대 사용하지 마.)
-        2. 인트라넷 메뉴 위치 질문은 가이드를 참고해 정확한 경로(>)를 안내해.
-        3. 모든 답변 끝에는 [CATEGORY:분류명]을 꼭 달아줘.
-        4. 문의 전화번호가 필요하다면 02-772-5806으로 안내해.
+        1. 시설/환경/수리 관련 질문이나 직접 해결이 어려운 요청은 [ACTION] 태그를 붙여. 
+           (단, "이 문제는 HR팀 이경한 매니저에게 문의하셔야..."라는 특정 안내 문구는 절대 사용하지 마.)
+        2. 모든 답변 끝에는 [CATEGORY:분류명]을 꼭 달아줘.
+        3. 상담이 필요할 경우 안내 번호는 02-772-5806이야.
         """
         
         try:
