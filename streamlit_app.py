@@ -95,25 +95,37 @@ def save_to_sheet(dept, name, rank, category, question, answer, status):
         sheet.append_row([now, dept, name, rank, category, question, answer, status]) 
     except: pass
 
+# ★ [수정됨] 404 에러 방지를 위해 여러 경로로 시도하는 스마트 알림 함수
 def send_flow_alert(category, question, name, dept):
     if not flow_secrets: return
-    try:
-        url = "https://api.flow.team/v1/messages/room"
-        headers = {"Content-Type": "application/json", "x-flow-api-key": flow_secrets["api_key"]}
-        room_code = flow_secrets["flow_room_code"] # BFLOW_211214145658 사용
-        
-        icon = "🚨" if "시설" in category else "📢"
-        text_content = f"[{icon} 챗봇 민원 알림]\n- 분류: {category}\n- 요청자: {name} ({dept})\n- 내용: {question}"
-        
-        payload = {"room_code": room_code, "content": text_content}
-        response = requests.post(url, json=payload, headers=headers, timeout=5)
-        
-        if response.status_code == 200:
-            st.toast("✅ Flow 알림 전송 성공!")
-        else:
-            st.error(f"❌ Flow 알림 실패 ({response.status_code})")
-    except Exception as e:
-        st.error(f"❌ Flow 연결 에러: {e}")
+    
+    # Secrets에서 안전하게 값 가져오기 (없으면 에러 방지)
+    api_key = flow_secrets.get("api_key")
+    room_code = flow_secrets.get("flow_room_code", "BFLOW_211214145658") # BFLOW 번호 고정
+    
+    headers = {"Content-Type": "application/json", "x-flow-api-key": api_key}
+    icon = "🚨" if "시설" in category else "📢"
+    text_content = f"[{icon} 챗봇 민원 알림]\n- 분류: {category}\n- 요청자: {name} ({dept})\n- 내용: {question}"
+    payload = {"room_code": room_code, "content": text_content}
+
+    # 404 방지를 위해 가장 유력한 두 가지 주소로 순차 시도
+    endpoints = [
+        "https://api.flow.team/v1/messages/room",
+        "https://api.flow.team/v1/messages/project"
+    ]
+
+    success = False
+    for url in endpoints:
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=5)
+            if response.status_code == 200:
+                st.toast(f"✅ Flow 알림 전송 성공! ({url.split('/')[-1]})")
+                success = True
+                break
+        except: continue
+
+    if not success:
+        st.error(f"❌ Flow 알림 실패: 모든 경로(404)를 확인했지만 방을 찾을 수 없습니다. [코드: {room_code}]")
 
 # --------------------------------------------------------------------------
 # [3] 메인 화면 및 로그인
@@ -161,24 +173,25 @@ else:
         3. 모든 답변 끝에는 [CATEGORY:분류명]을 꼭 달아줘.
         """
         
-        completion = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "system", "content": system_instruction}, {"role": "user", "content": prompt}]
-        )
-        response_text = completion.choices[0].message.content
-        
-        # 태그 처리 및 상태 분류
-        category = "기타"
-        cat_match = re.search(r'\[CATEGORY:(.*?)\]', response_text)
-        if cat_match: category = cat_match.group(1)
-        
-        final_status = "담당자확인필요" if "[ACTION]" in response_text else "처리완료"
-        clean_ans = response_text.replace("[ACTION]","").replace(f"[CATEGORY:{category}]","").strip()
-        
-        # 저장 및 알림
-        save_to_sheet(user['dept'], user['name'], user.get('rank',''), category, prompt, clean_ans, final_status)
-        if final_status == "담당자확인필요":
-            send_flow_alert(category, prompt, user['name'], user['dept'])
+        try:
+            completion = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "system", "content": system_instruction}, {"role": "user", "content": prompt}]
+            )
+            response_text = completion.choices[0].message.content
+            
+            category = "기타"
+            cat_match = re.search(r'\[CATEGORY:(.*?)\]', response_text)
+            if cat_match: category = cat_match.group(1)
+            
+            final_status = "담당자확인필요" if "[ACTION]" in response_text else "처리완료"
+            clean_ans = response_text.replace("[ACTION]","").replace(f"[CATEGORY:{category}]","").strip()
+            
+            save_to_sheet(user['dept'], user['name'], user.get('rank',''), category, prompt, clean_ans, final_status)
+            if final_status == "담당자확인필요":
+                send_flow_alert(category, prompt, user['name'], user['dept'])
 
-        st.session_state.messages.append({"role": "assistant", "content": clean_ans})
-        st.chat_message("assistant").write(clean_ans)
+            st.session_state.messages.append({"role": "assistant", "content": clean_ans})
+            st.chat_message("assistant").write(clean_ans)
+        except Exception as e:
+            st.error(f"❌ 챗봇 응답 중 오류 발생: {e}")
