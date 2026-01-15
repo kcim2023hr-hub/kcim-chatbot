@@ -15,14 +15,14 @@ st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢")
 st.title("🤖 KCIM 사내 민원/문의 챗봇")
 
 # --------------------------------------------------------------------------
-# [1] 데이터 로드 (전화번호 02-772-5806 반영 및 문법 오류 수정)
+# [1] 데이터 로드 (02-772-5806 반영 및 문법 오류 수정)
 # --------------------------------------------------------------------------
 
 @st.cache_data
 def load_employee_db():
     file_name = 'members.xlsx' 
     db = {}
-    # 전화번호 수정 반영: 02-772-5806
+    # 요청하신 전화번호로 업데이트 완료
     db["관리자"] = {"pw": "1323", "dept": "HR팀", "rank": "매니저", "tel": "02-772-5806"}
     if os.path.exists(file_name):
         try:
@@ -48,7 +48,7 @@ EMPLOYEE_DB = load_employee_db()
 def load_data():
     org_text, general_rules, intranet_guide = "", "", ""
     for file_name in os.listdir('.'):
-        # SyntaxError 방지를 위해 try와 with 문을 개별 라인으로 정확히 분리
+        # [SyntaxError 해결] try와 with 문을 개별 라인으로 분리하여 수정 완료
         if "org" in file_name.lower() or "조직도" in file_name.lower():
             try:
                 with open(file_name, 'r', encoding='utf-8') as f:
@@ -97,6 +97,7 @@ def save_to_sheet(dept, name, rank, category, question, answer, status):
         scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
         creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(google_secrets), scope)
         gs_client = gspread.authorize(creds)
+        # 구글 시트 URL은 매니저님 시트로 고정
         sheet = gs_client.open_by_url("https://docs.google.com/spreadsheets/d/1jckiUzmefqE_PiaSLVHF2kj2vFOIItc3K86_1HPWr_4/edit").worksheet("응답시트")
         sheet.append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), dept, name, rank, category, question, answer, status]) 
     except: pass
@@ -104,7 +105,7 @@ def save_to_sheet(dept, name, rank, category, question, answer, status):
 def send_flow_alert(category, question, name, dept):
     if not flow_secrets: return
     api_key = flow_secrets.get("api_key")
-    # image_6cbc4f.png에서 확인된 진짜 Project ID 적용
+    # image_6cbc4f에서 확인된 진짜 Project ID 적용
     room_code = flow_secrets.get("flow_room_code", "2786111") 
     
     headers = {"Content-Type": "application/json", "x-flow-api-key": api_key}
@@ -113,8 +114,7 @@ def send_flow_alert(category, question, name, dept):
     # 프로젝트 게시글(Post) 생성 API 시도
     try:
         url = "https://api.flow.team/v1/projects/posts"
-        # 키 이름을 projectId 및 project_code 모두 대응되게 구성
-        payload = {"project_code": room_code, "projectId": room_code, "title": "🤖 챗봇 민원 접수", "body": content}
+        payload = {"project_code": room_code, "title": "🤖 챗봇 민원 접수", "body": content}
         res = requests.post(url, json=payload, headers=headers, timeout=5)
         if res.status_code == 200:
             st.toast("✅ Flow 알림 전송 성공")
@@ -128,7 +128,7 @@ def send_flow_alert(category, question, name, dept):
     except: pass
 
 # --------------------------------------------------------------------------
-# [3] UI 및 로직
+# [3] 메인 화면 및 로직
 # --------------------------------------------------------------------------
 if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 
@@ -153,6 +153,7 @@ else:
             st.session_state.clear()
             st.rerun()
         
+        # 관리자 도구 복구
         if user['name'] in ["이경한", "관리자"]:
             st.divider()
             st.markdown("### 🛠️ 관리자 도구")
@@ -172,14 +173,14 @@ else:
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.chat_message("user").write(prompt)
 
-        # 시스템 지침: 특정 문구 제거 및 전문적 안내 반영
-        system_instruction = f"""너는 KCIM의 HR AI 매니저야.
+        # 요청사항 반영: 특정 매니저 언급 문구 제거 및 전문적 안내
+        system_instruction = f"""너는 KCIM의 HR AI 매니저야. 아래 자료를 바탕으로 답변해줘.
         [자료]: {ORG_CHART_DATA} {COMPANY_RULES} {INTRANET_GUIDE}
         
-        1. 시설/수리 관련 질문이나 전문 답변이 필요한 사안은 반드시 [ACTION] 태그를 붙여.
-        2. 절대 '이 문제는 HR팀 이경한 매니저에게 문의하셔야 처리할 수 있습니다'라는 문구는 쓰지 마.
+        1. 시설/수리 관련 질문이나 직접 해결이 어려운 요청은 반드시 [ACTION] 태그를 붙여.
+        2. 답변 시 절대 '이 문제는 HR팀 이경한 매니저에게 문의하셔야 처리할 수 있습니다'라는 문구는 쓰지 마.
         3. 대신 '해당 사안은 담당 부서의 확인이 필요합니다. 내용을 전달하였으니 잠시만 기다려 주세요.'라고 정중히 답해.
-        4. 모든 답변 끝에 [CATEGORY:분류]를 달아.
+        4. 모든 답변 끝에 [CATEGORY:분류명]을 꼭 달아줘.
         5. 전화번호 안내가 필요하면 반드시 02-772-5806으로 안내해.
         """
         
@@ -189,7 +190,11 @@ else:
                 messages=[{"role": "system", "content": system_instruction}, {"role": "user", "content": prompt}]
             )
             raw = completion.choices[0].message.content
-            category = re.search(r'\[CATEGORY:(.*?)\]', raw).group(1) if "[CATEGORY:" in raw else "기타"
+            
+            category = "기타"
+            cat_match = re.search(r'\[CATEGORY:(.*?)\]', raw)
+            if cat_match: category = cat_match.group(1)
+            
             final_status = "담당자확인필요" if "[ACTION]" in raw else "처리완료"
             clean_ans = raw.replace("[ACTION]","").replace(f"[CATEGORY:{category}]","").strip()
             
