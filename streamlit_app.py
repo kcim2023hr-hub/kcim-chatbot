@@ -20,11 +20,11 @@ st.markdown("""
     div[data-testid="stForm"] { background-color: #ffffff; padding: 50px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); border: 1px solid #e1e4e8; text-align: center; }
     div[data-testid="stNotification"] { font-size: 16px; background-color: #f0f7ff; border-radius: 12px; color: #0056b3; padding: 20px; }
     
-    /* 사이드바 디자인 */
+    /* 사이드바 디자인 및 로고 중앙 정렬 */
     section[data-testid="stSidebar"] { background-color: #ffffff !important; border-right: 1px solid #dee2e6; }
     .sidebar-user-box { background-color: #f8f9fa; padding: 20px; border-radius: 15px; border: 1px solid #edf0f2; margin-bottom: 20px; text-align: center; }
     
-    /* 사이드바 버튼 가독성 고정 */
+    /* 사이드바 카테고리 버튼 가독성 고정 */
     div[data-testid="stSidebar"] .stButton > button { background-color: #ffffff !important; border: 1px solid #e9ecef !important; padding: 18px 15px !important; border-radius: 15px !important; width: 100% !important; margin-bottom: -5px !important; }
     div[data-testid="stSidebar"] .stButton > button div[data-testid="stMarkdownContainer"] p { font-size: 13px; color: #666; line-height: 1.5; white-space: pre-line; text-align: left; margin: 0; }
     div[data-testid="stSidebar"] .stButton > button div[data-testid="stMarkdownContainer"] p::first-line { font-size: 16px; font-weight: 700; color: #1a1c1e; }
@@ -37,7 +37,31 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------------
-# [1] 유틸리티 기능 (KST 보정, 요약, 시트 저장)
+# [1] 규정 파일 지식 베이스 맵핑
+# --------------------------------------------------------------------------
+COMPANY_DOCUMENTS_INFO = """
+[KCIM 최신 사내 규정 파일 목록 및 주요 내용]
+1. 2025년_복지제도.pdf: 연차, Refresh 휴가, 자녀 학자금, 경조금 등 복지 전반
+2. 2025년 달라지는 육아지원제도.pdf: 육아휴직, 육아기 단축근무, 정부지원 요약
+3. 2025_현장근무지원금_최종.pdf: 현장근무자 식대, 교통비, 근무지 원거리 지원
+4. 사고발생처리 매뉴얼.pdf: 사고 발생 시 보고 절차, 산재처리 프로세스
+5. 행동규범.pdf: 임직원 행동 수칙 및 윤리 규정, 기준 위반 시 처리
+6. 취업규칙_2025.pdf: 근무시간, 휴가, 징계, 복무 등 회사 취업 전반 규정
+7. 노동부 지원금 매뉴얼.pdf: 청년고용장려금, 출산육아 정부지원금 신청방법
+8. KCIM 계약서 검토 프로세스.pdf: 계약서 작성/검토/보관 절차 및 체크포인트
+9. 2024 재택근무 내부프로세스.pdf: 재택근무 신청, 승인, 근태기록 방식
+10. 2024_재택근무_운영규정.pdf: 재택근무 운영 기준과 예외사항
+11. 연차유예 및 대체휴가 지침.pdf: 연차이월 기준, 대체휴가 처리 방식, 소진기한
+12. 임직원 연락망_2025.pdf: 부서별 연락처, 담당자 정보
+13. 도서구입 및 도서관 운영지침.docx: 사내 도서관 이용 방법, 도서구입 신청절차
+14. 사내동호회운영규정.pdf: 동호회 창설, 운영비, 활동 보고서 등
+15. 사내 와이파이 정보.pdf: 각 층별 와이파이 명칭(SSID) 및 비밀번호
+16. 2023_KCIM_사내도서지원.pptx: 사내 도서지원 제도 안내 프레젠테이션
+17. 경영관리본부 업무분장표.pdf: 본부별 담당업무 분장 및 직무 담당자
+"""
+
+# --------------------------------------------------------------------------
+# [2] 유틸리티 기능 (KST 보정, 요약, 시트 저장)
 # --------------------------------------------------------------------------
 def get_kst_time():
     """한국 표준시(KST) 반환"""
@@ -78,7 +102,7 @@ def save_to_sheet(dept, name, rank, category, question, answer, status):
     except: pass
 
 # --------------------------------------------------------------------------
-# [2] 데이터 로드 (KCIM 1990년 창립 정보 유지)
+# [3] 데이터 로드 (KCIM 1990년 창립 정보 유지)
 # --------------------------------------------------------------------------
 @st.cache_data
 def load_employee_db():
@@ -98,7 +122,7 @@ def load_employee_db():
 EMPLOYEE_DB = load_employee_db()
 
 # --------------------------------------------------------------------------
-# [3] UI 및 메인 로직
+# [4] UI 및 메인 로직
 # --------------------------------------------------------------------------
 if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 if "messages" not in st.session_state: st.session_state["messages"] = []
@@ -124,7 +148,7 @@ else:
         # [수정] KCIM 로고 및 텍스트를 가운데 정렬 처리
         st.markdown("<div style='text-align: center; width: 100%;'><h2 style='color: #1a1c1e; margin-bottom: 20px;'>🏢 KCIM</h2></div>", unsafe_allow_html=True)
         
-        # 인사부 -> HR팀 명칭 수정 반영
+        # [수정] HR팀 명칭 반영
         st.markdown(f"<div class='sidebar-user-box'><small>인증된 사용자</small><br><b style='font-size: 20px;'>{user['name']} {user['rank']}</b><br><span style='color: #28a745; font-weight: 600;'>{user['dept']}</span></div>", unsafe_allow_html=True)
         
         st.subheader("🚀 민원 카테고리")
@@ -151,16 +175,23 @@ else:
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]): st.write(msg["content"])
 
-    # 채팅 입력 및 답변 생성 (답변 지연 해결을 위한 rerun 포함)
+    # 채팅 입력 및 답변 생성 (업데이트된 지식 베이스 반영)
     if prompt := st.chat_input("문의 내용을 입력하세요"):
         st.session_state["inquiry_active"] = True
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.write(prompt)
         
-        # '인사부' -> 'HR팀' 수정 반영 및 지침 고정
-        sys_msg = f"너는 1990년 창립된 KCIM의 HR팀 매니저야. {user['name']}님께 정중히 답변해줘. 시설 수리 등 담당자 확인이 필요한 건은 답변 끝에 반드시 [ACTION]을 붙여줘. 마지막엔 [CATEGORY:분류명]을 포함해줘."
+        # [핵심] 최신 17종 규정 파일 목록을 시스템 지침에 삽입
+        sys_msg = f"""너는 1990년 창립된 KCIM의 HR팀 매니저야. {user['name']}님께 정중히 답변해줘.
+        아래의 최신 사내 규정 파일 목록을 참고하여 답변하고, 필요하다면 파일명을 언급하며 안내해줘:
+        {COMPANY_DOCUMENTS_INFO}
         
-        with st.spinner("KCIM 매니저가 답변을 작성 중입니다..."):
+        [원칙]
+        1. 시설 수리 등 담당자 확인이 필요한 실무 건은 답변 끝에 반드시 [ACTION]을 붙여줘.
+        2. 마지막엔 반드시 [CATEGORY:분류명]을 포함해줘.
+        """
+        
+        with st.spinner("KCIM 매니저가 규정을 확인 중입니다..."):
             try:
                 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
                 res = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "system", "content": sys_msg}] + st.session_state.messages)
