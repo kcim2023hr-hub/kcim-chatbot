@@ -146,15 +146,15 @@ else:
             intent = check_finish_intent(prompt)
             
             if intent == "FINISH":
-                # 종료 멘트만 날리고 끝 (저장은 이미 되어있음)
-                end_msg = "감사합니다. 상담을 종료합니다. 오늘도 좋은 하루 되세요!"
+                # [수정됨] 요청하신 따뜻한 멘트로 변경!
+                end_msg = "늘 좋은 하루 보내세요😊"
                 st.session_state.messages.append({"role": "assistant", "content": end_msg})
                 st.chat_message("assistant").write(end_msg)
                 
                 st.session_state["awaiting_confirmation"] = False
-                st.stop() # 여기서 코드 중단
+                st.stop() 
             else:
-                # "아니요 질문 있어요" -> 계속 진행 (상태 해제하고 아래 로직으로)
+                # 계속 질문 시 상태 해제
                 st.session_state["awaiting_confirmation"] = False
 
         # [CASE 2] 질문 처리 및 즉시 저장
@@ -192,8 +192,7 @@ else:
                 final_status = "처리완료"
                 clean_response = raw_response.replace("[INFO]", "").strip()
 
-            # ★ [핵심 변경] 답변을 생성하자마자 엑셀에 저장해버립니다!
-            # 사용자가 창을 닫아도 이미 기록은 남습니다.
+            # 즉시 저장 (창 닫아도 안전)
             save_to_sheet(user['dept'], user['name'], user['rank'], prompt, clean_response, final_status)
 
             # 답변 출력
@@ -201,5 +200,5 @@ else:
             st.session_state.messages.append({"role": "assistant", "content": full_response})
             st.chat_message("assistant").write(full_response)
 
-            # 종료 확인 대기 모드로 진입
+            # 종료 확인 대기
             st.session_state["awaiting_confirmation"] = True
