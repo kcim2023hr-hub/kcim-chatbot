@@ -13,13 +13,12 @@ st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢")
 st.title("🤖 KCIM 사내 민원/문의 챗봇")
 
 # --------------------------------------------------------------------------
-# [1] 직원 데이터베이스 로드 (새로 올린 파일 연동)
-# 파일명: 구성원(정상)__20260115121840.xlsx - 구성원(정상).csv
+# [1] 직원 데이터베이스 로드 (파일명: members.csv)
 # --------------------------------------------------------------------------
 @st.cache_data
 def load_employee_db():
-    # 업로드해주신 파일명 (정확해야 합니다)
-    file_name = '구성원(정상)__20260115121840.xlsx - 구성원(정상).csv'
+    # 이름을 단순하게 바꿨습니다.
+    file_name = 'members.csv' 
     
     db = {}
     
@@ -29,41 +28,39 @@ def load_employee_db():
     if os.path.exists(file_name):
         try:
             # CSV 파일 읽기
-            # 1. utf-8로 먼저 시도하고, 실패하면 cp949(한글 윈도우)로 시도
             try:
                 df = pd.read_csv(file_name)
             except UnicodeDecodeError:
                 df = pd.read_csv(file_name, encoding='cp949')
             
-            # 데이터 정제 및 DB 구축
-            # 새 파일 헤더: [이름, 부서, 직급, 휴대폰 번호]
+            # 데이터 정제
             for _, row in df.iterrows():
-                # 데이터가 비어있을 수 있으므로 문자열로 변환 후 공백 제거
                 name = str(row['이름']).strip()
                 dept = str(row['부서']).strip()
                 rank = str(row['직급']).strip()
                 phone = str(row['휴대폰 번호']).strip()
                 
-                # 휴대폰 번호에서 숫자만 추출 ('-' 제거)
+                # 휴대폰 번호 숫자만 추출
                 phone_digits = re.sub(r'[^0-9]', '', phone)
                 
-                # 뒷 4자리를 비밀번호로 사용
+                # 뒷 4자리 비밀번호
                 if len(phone_digits) >= 4:
                     pw = phone_digits[-4:]
                 else:
-                    pw = "0000" # 번호가 없거나 짧으면 0000
+                    pw = "0000"
                 
-                # DB에 저장
                 db[name] = {
                     "pw": pw,
                     "dept": dept,
                     "rank": rank
                 }
         except Exception as e:
-            st.error(f"직원 명단 파일 로드 중 오류 발생: {e}")
-            st.write("오류 상세:", e)
+            st.error(f"❌ 파일 읽기 오류: {e}")
     else:
-        st.warning(f"⚠️ '{file_name}' 파일을 찾을 수 없습니다. (GitHub에 업로드되었는지 확인해주세요)")
+        # 파일이 없을 때, 현재 폴더에 무슨 파일이 있는지 보여주는 진단 기능
+        st.error(f"⚠️ '{file_name}' 파일을 찾을 수 없습니다.")
+        st.warning(f"📂 현재 폴더에 있는 파일 목록: {os.listdir('.')}")
+        st.info("GitHub에 'members.csv'라는 이름으로 파일을 업로드했는지 확인해주세요.")
         
     return db
 
@@ -71,7 +68,7 @@ def load_employee_db():
 EMPLOYEE_DB = load_employee_db()
 
 # --------------------------------------------------------------------------
-# [2] 구글 시트 주소 (기존 주소 유지)
+# [2] 구글 시트 주소
 # --------------------------------------------------------------------------
 sheet_url = "https://docs.google.com/spreadsheets/d/1jckiUzmefqE_PiaSLVHF2kj2vFOIItc3K86_1HPWr_4/edit?gid=1434430603#gid=1434430603"
 
@@ -93,21 +90,14 @@ def save_to_sheet(dept, name, rank, question, answer):
         creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(google_secrets), scope)
         gs_client = gspread.authorize(creds)
         
-        # 시트 열기 (탭 이름: 응답시트)
         sheet = gs_client.open_by_url(sheet_url).worksheet("응답시트")
-        
-        # 날짜 기록
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        # 순서: [날짜, 부서, 성명, 직급, 질문, 답변, 비고]
         sheet.append_row([now, dept, name, rank, question, answer, ""]) 
-        
-        print(f"✅ 기록 완료: {dept} {name} {rank}")
         
     except Exception as e:
         st.error(f"기록 실패: {e}")
 
-# 4. 로그인 화면 (자동 인식 버전)
+# 4. 로그인 화면
 def login():
     st.header("🔒 임직원 접속 (신원확인)")
     st.caption("성명과 휴대폰 번호 뒷 4자리를 입력해주세요.")
@@ -121,14 +111,12 @@ def login():
         
         if submit_button:
             if not input_name or not input_pw:
-                st.warning("성명과 비밀번호를 모두 입력해주세요.")
+                st.warning("정보를 모두 입력해주세요.")
                 return
 
-            # DB에서 확인
             if input_name in EMPLOYEE_DB:
                 user_data = EMPLOYEE_DB[input_name]
                 if user_data["pw"] == input_pw:
-                    # 로그인 성공 -> 세션에 정보 저장
                     st.session_state["logged_in"] = True
                     st.session_state["user_info"] = {
                         "dept": user_data["dept"],
@@ -139,9 +127,9 @@ def login():
                     time.sleep(1)
                     st.rerun()
                 else:
-                    st.error("비밀번호(휴대폰 뒷 4자리)가 일치하지 않습니다.")
+                    st.error("비밀번호가 일치하지 않습니다.")
             else:
-                st.error("등록되지 않은 직원입니다. (관리자에게 문의)")
+                st.error("명단에 없는 이름입니다.")
 
 # 5. 메인 로직
 if "logged_in" not in st.session_state:
@@ -173,12 +161,6 @@ else:
             system_instruction = """
             너는 KCIM(케이씨아이엠)의 HR/총무 담당 AI 매니저야.
             임직원의 질문에 대해 아래 [사내 규정]을 기반으로 친절하고 명확하게 답변해.
-            
-            [사내 규정 요약]
-            1. 법인차량: 그룹웨어 신청, 키는 3층 경영지원팀 수령.
-            2. 연차: 팀장 전결(3일 이상 본부장), 반차 사용 가능.
-            3. 경조사: 결혼(본인 50/5일), 1주일 전 신청서 제출.
-            4. 기타: 규정에 없거나 시설 민원은 "담당자 확인 후 처리해 드리겠습니다."라고 답하고 끝에 [민원접수] 태그를 붙여.
             """
             
             completion = client.chat.completions.create(
