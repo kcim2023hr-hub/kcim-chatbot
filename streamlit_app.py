@@ -60,7 +60,7 @@ def send_flow_alert(category, question, name, dept):
     content = f"[🚨 챗봇 민원 알림]\n- 요청자: {name} ({dept})\n- 분류: {category}\n- 내용: {question}"
 
     # ★ 404 해결의 핵심: 등록하신 동작(OperationID)에 맞는 '표준 주소' 사용
-    # 주소 뒤에 ID를 붙이지 않고, 본문(JSON) 데이터 안에 코드를 넣어 보냅니다.
+    # 주소 뒤에 ID를 붙이지 않는 것이 플로우 관리자 API의 핵심입니다.
     attempts = [
         # 1. 게시글 작성 (OperationID: createPost)
         ("https://api.flow.team/v1/posts", {"project_code": p_id, "title": "🤖 챗봇 민원 접수", "body": content}),
@@ -128,7 +128,7 @@ else:
         # 지침: '이경한 매니저' 언급 금지 및 상담 번호 반영
         sys_msg = f"""너는 KCIM의 HR AI 매니저야. 아래 자료를 참고해.
         1. 시설/수리 관련 질문에는 반드시 [ACTION] 태그를 붙여.
-        2. 답변 시 절대 '이경한 매니저'라는 성함을 직접 언급하지 마.
+        2. 답변 시 절대 '이경한 매니저'라는 성함을 직접 언급하지 마. 
         3. 대신 '해당 사안은 담당 부서의 확인이 필요합니다. 내용을 전달하였으니 잠시만 기다려 주세요.'라고 정중히 답해.
         4. 모든 답변 끝에 [CATEGORY:분류]를 달아줘.
         5. 상담 안내 번호는 반드시 02-772-5806으로 안내해.
