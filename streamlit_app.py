@@ -20,6 +20,7 @@ st.title("🤖 KCIM 사내 민원/문의 챗봇")
 def load_employee_db():
     file_name = 'members.xlsx' 
     db = {}
+    # 요청하신 상담 안내 번호 업데이트 (02-772-5806)
     db["관리자"] = {"pw": "1323", "dept": "HR팀", "rank": "매니저", "tel": "02-772-5806"}
     if os.path.exists(file_name):
         try:
@@ -40,7 +41,7 @@ def load_employee_db():
 EMPLOYEE_DB = load_employee_db()
 
 # --------------------------------------------------------------------------
-# [2] 외부 연동 (Flow 관리자 API 표준 규격 적용)
+# [2] 외부 연동 (Flow 관리자 API 표준 주소 적용)
 # --------------------------------------------------------------------------
 try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
@@ -53,13 +54,13 @@ except Exception as e:
 def send_flow_alert(category, question, name, dept):
     if not flow_secrets: return False, "Secrets 설정 누락"
     api_key = flow_secrets.get("api_key")
-    p_id = "2786111" # 확인된 프로젝트 ID
+    p_id = "2786111" # image_6cbc4f에서 확인된 ID
     
     headers = {"Content-Type": "application/json", "x-flow-api-key": api_key}
     content = f"[🚨 챗봇 민원 알림]\n- 요청자: {name} ({dept})\n- 분류: {category}\n- 내용: {question}"
 
-    # ★ 404 해결의 핵심: 'createPost' 동작은 반드시 아래 주소여야 합니다.
-    # 주소에 프로젝트 번호를 넣지 않고, 본문(JSON)에 project_code로 넣어 보냅니다.
+    # ★ 404 해결의 핵심: 'createPost' 동작은 반드시 아래 표준 주소여야 합니다.
+    # 주소 뒤에 ID를 붙이지 않고, 본문(JSON) 데이터 안에 project_code를 넣어 보냅니다.
     endpoints = [
         # 1. 게시글 작성 (OperationID: createPost)
         ("https://api.flow.team/v1/posts", {"project_code": p_id, "title": "🤖 챗봇 민원 접수", "body": content}),
@@ -103,11 +104,16 @@ else:
             st.rerun()
         if user['name'] in ["이경한", "관리자"]:
             st.divider()
+            st.markdown("### 🛠️ 관리자 도구")
             if st.button("🔔 Flow 연동 테스트"):
-                with st.status("플로우 관리자 API 전송 중...") as s:
-                    ok, err = send_flow_alert("테스트", "시스템 연동 테스트 메시지입니다.", user['name'], user['dept'])
-                    if ok: s.update(label="✅ 전송 성공!", state="complete")
-                    else: st.sidebar.error(f"❌ 실패: {err}")
+                with st.status("플로우 관리자 API 전송 시도 중...") as status:
+                    success, msg = send_flow_alert("테스트", "시스템 연동 테스트 메시지입니다.", user['name'], user['dept'])
+                    if success:
+                        status.update(label="✅ 전송 성공!", state="complete")
+                        st.sidebar.success("플로우 프로젝트를 확인하세요!")
+                    else:
+                        status.update(label="❌ 전송 실패", state="error")
+                        st.sidebar.error(f"사유: {msg}")
 
     st.markdown(f"### 👋 안녕하세요, {user['name']}님!")
     if "messages" not in st.session_state:
