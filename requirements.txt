@@ -4,4 +4,4 @@ gspread
 oauth2client
 pandas
 openpyxl
-PyPDF2
+PyPDF2 
