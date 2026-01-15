@@ -172,8 +172,9 @@ else:
     st.markdown(f"### 👋 안녕하세요, {user['name']} {user['rank']}님!")
     st.markdown("무엇을 도와드릴까요?")
 
+    # ★ 여기를 수정했습니다 (인사말 변경)
     if "messages" not in st.session_state:
-        st.session_state["messages"] = [{"role": "assistant", "content": "규정이나 결재 관련 궁금한 점이 있으신가요?"}]
+        st.session_state["messages"] = [{"role": "assistant", "content": "반갑습니다! 👋 **복지, 규정, 조직도, 시설 이용** 등 궁금한 점이 있으시면 언제든 물어보세요."}]
     
     if "awaiting_confirmation" not in st.session_state:
         st.session_state["awaiting_confirmation"] = False
@@ -197,7 +198,7 @@ else:
             else:
                 st.session_state["awaiting_confirmation"] = False
 
-        # [CASE 2] 답변 생성 (하이브리드 모드)
+        # [CASE 2] 답변 생성
         if not st.session_state["awaiting_confirmation"]:
             
             system_instruction = f"""
