@@ -9,8 +9,19 @@ import os
 import re
 import PyPDF2
 
-# 1. 페이지 설정
-st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢", layout="wide")
+# 1. 페이지 설정: layout="wide"를 제거하여 기본 중앙 정렬을 사용합니다.
+st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢")
+
+# 중앙 정렬을 위한 커스텀 CSS (채팅 메시지 너비 조절)
+st.markdown("""
+    <style>
+    .block-container {
+        max-width: 800px;
+        padding-top: 2rem;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
 st.title("🤖 KCIM 사내 민원/문의 챗봇")
 
 # --------------------------------------------------------------------------
@@ -72,7 +83,7 @@ def load_data():
 
 ORG_CHART_DATA, COMPANY_RULES, INTRANET_GUIDE = load_data()
 
-# 업무 분장 데이터 (2026-01-02 노하우 반영) [cite: 2026-01-02]
+# 업무 분장 데이터 [cite: 2026-01-02]
 WORK_DISTRIBUTION = """
 [경영관리본부 업무 분장표]
 - 이경한 매니저: 사옥/법인차량 관리, 현장 숙소 관리, 근태 관리, 행사 기획/실행, 임직원 제도 수립 [cite: 2026-01-02]
@@ -133,25 +144,27 @@ if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 
 # [로그인 화면]
 if not st.session_state["logged_in"]:
-    st.header("🔒 임직원 접속 (신원확인)")
-    with st.form("login_form"):
-        col1, col2 = st.columns(2)
-        input_name = col1.text_input("성명")
-        input_pw = col2.text_input("비밀번호 (휴대폰 뒷 4자리)", type="password")
-        
-        st.info("💡 민원 데이터 관리를 위해 해당 임직원 신원 확인을 요청드립니다.")
+    # 로그인 폼도 중앙에 배치하기 위해 컬럼 활용
+    _, center_col, _ = st.columns([1, 4, 1])
+    with center_col:
+        st.header("🔒 임직원 접속 (신원확인)")
+        with st.form("login_form"):
+            input_name = st.text_input("성명")
+            input_pw = st.text_input("비밀번호 (휴대폰 뒷 4자리)", type="password")
+            
+            st.info("💡 민원 데이터 관리를 위해 해당 임직원 신원 확인을 요청드립니다.")
 
-        if st.form_submit_button("접속하기"):
-            if input_name in EMPLOYEE_DB and EMPLOYEE_DB[input_name]["pw"] == input_pw:
-                st.session_state["logged_in"] = True
-                st.session_state["user_info"] = {
-                    "dept": EMPLOYEE_DB[input_name]["dept"], 
-                    "name": input_name, 
-                    "rank": EMPLOYEE_DB[input_name]["rank"]
-                }
-                st.rerun()
-            else:
-                st.error("성명 또는 비밀번호가 일치하지 않습니다.")
+            if st.form_submit_button("접속하기", use_container_width=True):
+                if input_name in EMPLOYEE_DB and EMPLOYEE_DB[input_name]["pw"] == input_pw:
+                    st.session_state["logged_in"] = True
+                    st.session_state["user_info"] = {
+                        "dept": EMPLOYEE_DB[input_name]["dept"], 
+                        "name": input_name, 
+                        "rank": EMPLOYEE_DB[input_name]["rank"]
+                    }
+                    st.rerun()
+                else:
+                    st.error("성명 또는 비밀번호가 일치하지 않습니다.")
 
 # [챗봇 메인 화면]
 else:
@@ -159,7 +172,13 @@ else:
     
     # --- 좌측 레이아웃(사이드바) 최적화 ---
     with st.sidebar:
-        st.image("https://www.kcim.co.kr/img/common/logo.png", width=150) # 예시 로고 (URL 확인 필요)
+        # 오류 해결: 이미지 URL이 잘못되었을 경우를 대비해 텍스트 로고 사용 또는 경로 확인
+        # 아래 URL이 작동하지 않으면 st.title("🏢 KCIM") 등으로 대체하세요.
+        try:
+            st.image("https://www.kcim.co.kr/img/common/logo.png", width=180)
+        except:
+            st.title("🏢 KCIM")
+            
         st.markdown("---")
         st.subheader("👤 접속 정보")
         st.success(f"**{user['name']} {user['rank']}**")
@@ -167,23 +186,22 @@ else:
         
         st.markdown("---")
         st.subheader("🚀 주요 서비스")
-        st.write("✅ 연차/근태 문의")
-        st.write("✅ 시설/차량 관리")
-        st.write("✅ 사내 규정 검색")
+        st.markdown("- 연차/근태 문의\n- 시설/차량 관리\n- 사내 규정 검색")
         
         st.markdown("---")
         if st.button("🚪 로그아웃", use_container_width=True):
             st.session_state.clear()
             st.rerun()
 
-    # --- 메인 채팅 화면 ---
+    # --- 메인 채팅 화면 (자동으로 중앙 정렬됨) ---
     if "messages" not in st.session_state:
-        # 개인화된 첫 인삿말 설정
+        # 질문 요청사항 반영: 민원인의 이름과 직급을 호출
         greeting = f"**{user['name']} {user['rank']}님**, 반갑습니다! 👋\n오늘은 **복지, 규정, 시설 이용** 등 어떤 점이 궁금하신가요?"
         st.session_state["messages"] = [{"role": "assistant", "content": greeting}]
     
     if "awaiting_confirmation" not in st.session_state: st.session_state["awaiting_confirmation"] = False
 
+    # 채팅 메시지 렌더링
     for msg in st.session_state.messages:
         st.chat_message(msg["role"]).write(msg["content"])
 
@@ -232,6 +250,7 @@ else:
             
             save_to_sheet(user['dept'], user['name'], user['rank'], category, summarize_text(prompt), summarize_text(clean_ans), final_status)
 
+            # 마지막 질문에도 이름과 직급 포함
             full_response = clean_ans + f"\n\n**{user['name']} {user['rank']}님, 더 궁금하신 점이 있으실까요?**"
             st.session_state.messages.append({"role": "assistant", "content": full_response})
             st.chat_message("assistant").write(full_response)
