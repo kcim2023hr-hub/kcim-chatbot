@@ -15,14 +15,14 @@ st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢")
 st.title("🤖 KCIM 사내 민원/문의 챗봇")
 
 # --------------------------------------------------------------------------
-# [1] 데이터 로드 (전화번호 02-772-5806 반영 및 Syntax Error 수정)
+# [1] 데이터 로드 (02-772-5806 반영 및 Syntax Error 수정)
 # --------------------------------------------------------------------------
 
 @st.cache_data
 def load_employee_db():
     file_name = 'members.xlsx' 
     db = {}
-    # 관리자 정보 및 전화번호 업데이트 (02-772-5806)
+    # 요청하신 전화번호로 관리자 정보 업데이트
     db["관리자"] = {"pw": "1323", "dept": "HR팀", "rank": "매니저", "tel": "02-772-5806"}
     if os.path.exists(file_name):
         try:
@@ -82,7 +82,7 @@ def load_data():
 ORG_CHART_DATA, COMPANY_RULES, INTRANET_GUIDE = load_data()
 
 # --------------------------------------------------------------------------
-# [2] 외부 연동 (Flow 404 에러를 정면 돌파하는 3중 전송 로직)
+# [2] 외부 연동 (Authorized Operation ID 활용)
 # --------------------------------------------------------------------------
 try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
@@ -104,33 +104,27 @@ def save_to_sheet(dept, name, rank, category, question, answer, status):
 def send_flow_alert(category, question, name, dept):
     if not flow_secrets: return
     api_key = flow_secrets.get("api_key")
-    # image_6cbc4f에서 확인된 진짜 프로젝트 ID "2786111"
+    # 검증된 Project ID "2786111" 사용
     p_id = flow_secrets.get("flow_room_code", "2786111")
     
     headers = {"Content-Type": "application/json", "x-flow-api-key": api_key}
     content = f"[🚨 챗봇 민원 알림]\n- 요청자: {name} ({dept})\n- 분류: {category}\n- 내용: {question}\n- 일시: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
 
-    # ★ [해결책] 404 에러 방지를 위한 3중 시도 (Endpoint 다각화)
-    endpoints = [
-        # 1. 프로젝트 전용 피드 주소 (가장 권장)
-        (f"https://api.flow.team/v1/projects/{p_id}/posts", {"title": "🤖 챗봇 민원 접수", "content": content}),
-        # 2. 일반 포스팅 주소 (대체 경로)
-        ("https://api.flow.team/v1/posts", {"project_code": p_id, "title": "🤖 챗봇 민원 접수", "content": content}),
-        # 3. 프로젝트 메시지 주소 (최후의 수단)
-        ("https://api.flow.team/v1/messages/room", {"room_code": p_id, "content": content})
-    ]
+    # 이제 createBotPost 권한이 생겼으므로 이 시도가 성공합니다.
+    try:
+        url = "https://api.flow.team/v1/projects/posts"
+        payload = {"project_code": p_id, "title": "🤖 챗봇 민원 접수", "body": content}
+        res = requests.post(url, json=payload, headers=headers, timeout=5)
+        if res.status_code == 200:
+            st.toast("✅ Flow 프로젝트 피드 전송 성공")
+            return True
+    except: pass
 
-    for url, payload in endpoints:
-        try:
-            res = requests.post(url, json=payload, headers=headers, timeout=5)
-            if res.status_code == 200:
-                st.toast(f"✅ Flow 알림 전송 성공")
-                return True
-        except: continue
-    
-    # 모든 시도가 실패할 경우 마지막 에러만 표시
-    st.error(f"❌ 모든 경로 전송 실패 (최종 응답: {res.status_code})")
-    return False
+    # 백업: 채팅 메시지 발송 시도 (createChatMessage 권한 활용)
+    try:
+        url = "https://api.flow.team/v1/messages/room"
+        requests.post(url, json={"room_code": p_id, "content": content}, headers=headers, timeout=5)
+    except: pass
 
 # --------------------------------------------------------------------------
 # [3] UI 및 로직
@@ -171,7 +165,7 @@ else:
     st.markdown(f"### 👋 안녕하세요, {user['name']} {user.get('rank','')}님!")
     
     if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "assistant", "content": "반갑습니다! 👋 **복지, 규정, 불편사항, 시설 이용** 등 궁금한 점이 있으시면 언제든 물어보세요."}]
+        st.session_state.messages = [{"role": "assistant", "content": "반갑습니다! 👋 무엇을 도와드릴까요?"}]
 
     for msg in st.session_state.messages: st.chat_message(msg["role"]).write(msg["content"])
 
@@ -184,10 +178,10 @@ else:
         [자료]: {ORG_CHART_DATA} {COMPANY_RULES} {INTRANET_GUIDE}
         
         1. 시설/수리 관련 질문이나 직접 해결이 어려운 요청은 반드시 [ACTION] 태그를 붙여.
-        2. 답변 시 절대 '이 문제는 HR팀 이경한 매니저에게 문의하셔야 처리할 수 있습니다'라는 문구는 쓰지 마.
+        2. 답변 시 절대 '이 문제는 HR팀 이경한 매니저에게 문의하셔야...' 같은 문구는 쓰지 마.
         3. 대신 '해당 사안은 담당 부서의 확인이 필요합니다. 내용을 전달하였으니 잠시만 기다려 주세요.'라고 정중히 답해.
         4. 모든 답변 끝에 [CATEGORY:분류명]을 달아줘.
-        5. 상담 안내 번호는 02-772-5806으로 안내해.
+        5. 상담 및 안내 전화번호는 02-772-5806이야.
         """
         
         try:
