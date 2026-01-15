@@ -19,12 +19,12 @@ except Exception as e:
     st.stop()
 
 def get_target_project_code():
-    """309개 프로젝트를 페이지별로 뒤져서 '[민원챗봇] 수신전용프로젝트' 코드를 찾음"""
+    """309개 프로젝트를 페이지별로 모두 뒤져서 진짜 코드를 찾음"""
     headers = {"Content-Type": "application/json", "x-flow-api-key": FLOW_API_KEY}
     url = "https://api.flow.team/v1/projects"
     next_cursor = None
     
-    # 최대 10페이지(1,000개)까지 전수 조사 시도 (309개 대응)
+    # 309개 대응을 위해 최대 10페이지까지 전수 조사 시도
     for _ in range(10):
         params = {"cursor": next_cursor} if next_cursor else {}
         res = requests.get(url, headers=headers, params=params)
@@ -34,7 +34,7 @@ def get_target_project_code():
             p_data = data.get('response', {}).get('data', {}).get('projects', {})
             p_list = p_data.get('projects', [])
             
-            # 매니저님의 실제 프로젝트 이름으로 검색 (image_78968b 확인 결과)
+            # 매니저님의 실제 프로젝트 이름으로 검색
             for p in p_list:
                 p_name = str(p.get('name'))
                 if "[민원챗봇] 수신전용프로젝트" in p_name:
@@ -46,9 +46,8 @@ def get_target_project_code():
     return None
 
 def send_flow_alert(category, question, user_name):
-    # 전수 조사를 통해 진짜 코드 획득 (404 방지의 핵심)
     p_code = get_target_project_code()
-    if not p_code: return False, "플로우 프로젝트를 찾을 수 없습니다. (이름 확인 필요)"
+    if not p_code: return False, "플로우 프로젝트를 찾을 수 없습니다."
     
     headers = {"Content-Type": "application/json", "x-flow-api-key": FLOW_API_KEY}
     url = "https://api.flow.team/v1/posts"
@@ -74,8 +73,8 @@ if prompt := st.chat_input("질문을 입력하세요"):
     st.chat_message("user").write(prompt)
 
     # 지침: 매니저님 성함 언급 절대 금지 및 안내 번호 고정
-    sys_msg = """너는 KCIM HR AI야. 
-    1. 답변 시 절대 담당자의 성함(이경한 등)을 언급하지 마. 
+    sys_msg = """너는 KCIM HR AI 매니저야. 
+    1. 답변 시 절대 담당자의 성함을 직접 언급하지 마. 
     2. 직접 해결이 어려운 요청은 '담당 부서의 확인이 필요합니다. 내용을 전달하였으니 잠시만 기다려 주세요.'라고 정중히 답해.
     3. 상담 안내 번호는 02-772-5806으로 안내해.
     """
@@ -92,11 +91,11 @@ if prompt := st.chat_input("질문을 입력하세요"):
         st.chat_message("assistant").write(ans)
     except Exception as e: st.error(f"오류: {e}")
 
-# 관리자용 테스트 도구
+# 관리자 전용 테스트 버튼
 with st.sidebar:
     st.markdown("### 🛠️ 관리자 도구")
     if st.button("🔔 연동 최종 테스트"):
         with st.status("309개 프로젝트 전수 조사 중...") as s:
-            ok, msg = send_flow_alert("시스템 테스트", "연동이 최종 성공했습니다!", "관리자")
+            ok, msg = send_flow_alert("시스템 테스트", "연동이 드디어 최종 성공했습니다!", "관리자")
             if ok: s.update(label="✅ 전송 성공! 플로우를 확인하세요.", state="complete")
             else: st.error(msg)
