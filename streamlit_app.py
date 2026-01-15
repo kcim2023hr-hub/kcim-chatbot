@@ -14,14 +14,12 @@ st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢")
 st.title("🤖 KCIM 사내 민원/문의 챗봇")
 
 # --------------------------------------------------------------------------
-# [1] 데이터 로드 (02-772-5806 반영)
+# [1] 데이터 로드 (02-772-5806 반영 완료)
 # --------------------------------------------------------------------------
-
 @st.cache_data
 def load_employee_db():
     file_name = 'members.xlsx' 
     db = {}
-    # 요청하신 상담 안내 번호 업데이트 완료
     db["관리자"] = {"pw": "1323", "dept": "HR팀", "rank": "매니저", "tel": "02-772-5806"}
     if os.path.exists(file_name):
         try:
@@ -41,25 +39,8 @@ def load_employee_db():
 
 EMPLOYEE_DB = load_employee_db()
 
-@st.cache_data
-def load_docs():
-    org, rules, intranet = "", "", ""
-    for f_name in os.listdir('.'):
-        try:
-            if "org" in f_name.lower() or "조직도" in f_name.lower():
-                with open(f_name, 'r', encoding='utf-8') as f: org += f.read() + "\n"
-            elif f_name.lower().endswith('.pdf'):
-                reader = PyPDF2.PdfReader(f_name)
-                for page in reader.pages: rules += (page.extract_text() or "") + "\n"
-            elif "intranet" in f_name.lower() and f_name.endswith('.txt'):
-                with open(f_name, 'r', encoding='utf-8') as f: intranet += f.read() + "\n"
-        except: pass
-    return org, rules, intranet
-
-ORG_DATA, RULES_DATA, INTRANET_DATA = load_docs()
-
 # --------------------------------------------------------------------------
-# [2] 외부 연동 (Flow 404 완전 정복 로직)
+# [2] 외부 연동 (Flow 관리자 API 표준 규격 적용)
 # --------------------------------------------------------------------------
 try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
@@ -69,36 +50,25 @@ except Exception as e:
     st.error(f"🔑 Secrets 설정 오류: {e}")
     st.stop()
 
-def save_to_sheet(dept, name, rank, category, question, answer, status):
-    try:
-        scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(google_secrets), scope)
-        gs_client = gspread.authorize(creds)
-        sheet = gs_client.open_by_url("https://docs.google.com/spreadsheets/d/1jckiUzmefqE_PiaSLVHF2kj2vFOIItc3K86_1HPWr_4/edit").worksheet("응답시트")
-        sheet.append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), dept, name, rank, category, question, answer, status])
-    except: pass
-
 def send_flow_alert(category, question, name, dept):
-    if not flow_secrets: return False, "Secrets 설정 없음"
+    if not flow_secrets: return False, "Secrets 설정 누락"
     api_key = flow_secrets.get("api_key")
-    p_id = "2786111" # image_6cbc4f에서 확인된 ID
+    p_id = "2786111" # 확인된 프로젝트 ID
     
     headers = {"Content-Type": "application/json", "x-flow-api-key": api_key}
     content = f"[🚨 챗봇 민원 알림]\n- 요청자: {name} ({dept})\n- 분류: {category}\n- 내용: {question}"
 
-    # ★ 404 해결의 핵심: 'createPost' 권한을 인식하는 3가지 경로를 모두 시도
-    # 플로우 서버 버전에 따라 수용하는 규격이 다르므로 순차적으로 전송해봅니다.
-    attempts = [
-        # 1. 표준 프로젝트 피드 경로
-        (f"https://api.flow.team/v1/projects/{p_id}/posts", {"title": "🤖 챗봇 민원 접수", "body": content}),
-        # 2. 일반 포스트 통합 경로
+    # ★ 404 해결의 핵심: 'createPost' 동작은 반드시 아래 주소여야 합니다.
+    # 주소에 프로젝트 번호를 넣지 않고, 본문(JSON)에 project_code로 넣어 보냅니다.
+    endpoints = [
+        # 1. 게시글 작성 (OperationID: createPost)
         ("https://api.flow.team/v1/posts", {"project_code": p_id, "title": "🤖 챗봇 민원 접수", "body": content}),
-        # 3. 채팅 메시지 경로 (createChatMessage 권한용)
-        ("https://api.flow.team/v1/messages/room", {"room_code": p_id, "content": content})
+        # 2. 채팅 메시지 전송 (OperationID: createChatMessage)
+        ("https://api.flow.team/v1/messages", {"room_code": p_id, "content": content})
     ]
 
     last_error = ""
-    for url, payload in attempts:
+    for url, payload in endpoints:
         try:
             res = requests.post(url, json=payload, headers=headers, timeout=5)
             if res.status_code == 200:
@@ -106,10 +76,11 @@ def send_flow_alert(category, question, name, dept):
             last_error = f"{res.status_code}: {res.text}"
         except Exception as e:
             last_error = str(e)
+            continue
     return False, last_error
 
 # --------------------------------------------------------------------------
-# [3] UI 및 로직
+# [3] UI 및 로직 (성함 언급 금지 지침 반영)
 # --------------------------------------------------------------------------
 if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 
@@ -132,16 +103,11 @@ else:
             st.rerun()
         if user['name'] in ["이경한", "관리자"]:
             st.divider()
-            st.markdown("### 🛠️ 관리자 도구")
             if st.button("🔔 Flow 연동 테스트"):
-                with st.status("전송 시도 중...") as status:
-                    success, msg = send_flow_alert("테스트", "시스템 연동 테스트 메시지입니다.", user['name'], user['dept'])
-                    if success:
-                        status.update(label="✅ 전송 성공!", state="complete")
-                        st.sidebar.success("플로우 프로젝트를 확인하세요!")
-                    else:
-                        status.update(label="❌ 전송 실패", state="error")
-                        st.sidebar.error(f"실패 사유: {msg}")
+                with st.status("플로우 관리자 API 전송 중...") as s:
+                    ok, err = send_flow_alert("테스트", "시스템 연동 테스트 메시지입니다.", user['name'], user['dept'])
+                    if ok: s.update(label="✅ 전송 성공!", state="complete")
+                    else: st.sidebar.error(f"❌ 실패: {err}")
 
     st.markdown(f"### 👋 안녕하세요, {user['name']}님!")
     if "messages" not in st.session_state:
@@ -153,14 +119,13 @@ else:
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.chat_message("user").write(prompt)
 
-        # 지침 반영: '이경한 매니저' 언급 금지 및 상담 번호 반영
-        sys_msg = f"""너는 KCIM의 HR AI 매니저야. 아래 자료를 참고해.
-        [자료]: {ORG_DATA} {RULES_DATA} {INTRANET_DATA}
-        1. 시설/수리 질문에는 반드시 [ACTION] 태그를 붙여.
+        # 지침: '이경한 매니저' 언급 금지 및 상담 번호 반영
+        sys_msg = f"""너는 KCIM의 HR AI 매니저야. 
+        1. 시설/수리 관련 질문에는 반드시 [ACTION] 태그를 붙여.
         2. 답변 시 절대 '이경한 매니저'라는 성함을 언급하지 마. 
-        3. 대신 '담당 부서의 확인이 필요합니다. 내용을 전달했으니 잠시만 기다려 주세요.'라고 정중히 답해.
+        3. 대신 '해당 사안은 담당 부서의 확인이 필요합니다. 내용을 전달하였으니 잠시만 기다려 주세요.'라고 정중히 답해.
         4. 모든 답변 끝에 [CATEGORY:분류]를 달아줘.
-        5. 상담 번호는 반드시 02-772-5806으로 안내해.
+        5. 상담 안내 번호는 반드시 02-772-5806으로 안내해.
         """
         
         try:
@@ -170,9 +135,7 @@ else:
             status = "담당자확인필요" if "[ACTION]" in ans else "처리완료"
             clean_ans = ans.replace("[ACTION]", "").replace(f"[CATEGORY:{cat}]", "").strip()
             
-            save_to_sheet(user['dept'], user['name'], user['rank'], cat, prompt, clean_ans, status)
             if status == "담당자확인필요": send_flow_alert(cat, prompt, user['name'], user['dept'])
-            
             st.session_state.messages.append({"role": "assistant", "content": clean_ans})
             st.chat_message("assistant").write(clean_ans)
         except Exception as e: st.error(f"오류: {e}")
