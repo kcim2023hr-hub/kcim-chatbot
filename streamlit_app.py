@@ -15,14 +15,14 @@ st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢")
 st.title("🤖 KCIM 사내 민원/문의 챗봇")
 
 # --------------------------------------------------------------------------
-# [1] 데이터 로드 (02-772-5806 및 정책 반영)
+# [1] 데이터 로드 (02-772-5806 반영 완료)
 # --------------------------------------------------------------------------
 
 @st.cache_data
 def load_employee_db():
     file_name = 'members.xlsx' 
     db = {}
-    # 전화번호 02-772-5806 업데이트 완료
+    # 전화번호 02-772-5806 업데이트 반영
     db["관리자"] = {"pw": "1323", "dept": "HR팀", "rank": "매니저", "tel": "02-772-5806"}
     if os.path.exists(file_name):
         try:
@@ -50,18 +50,14 @@ def load_data():
     for file_name in os.listdir('.'):
         if "org" in file_name.lower() or "조직도" in file_name.lower():
             try:
-                with open(file_name, 'r', encoding='utf-8') as f:
-                    org_text += f.read() + "\n"
+                with open(file_name, 'r', encoding='utf-8') as f: org_text += f.read() + "\n"
             except:
-                with open(file_name, 'r', encoding='cp949') as f:
-                    org_text += f.read() + "\n"
+                with open(file_name, 'r', encoding='cp949') as f: org_text += f.read() + "\n"
         elif "intranet" in file_name.lower() and file_name.endswith('.txt'):
             try:
-                with open(file_name, 'r', encoding='utf-8') as f:
-                    intranet_guide += f.read() + "\n"
+                with open(file_name, 'r', encoding='utf-8') as f: intranet_guide += f.read() + "\n"
             except:
-                with open(file_name, 'r', encoding='cp949') as f:
-                    intranet_guide += f.read() + "\n"
+                with open(file_name, 'r', encoding='cp949') as f: intranet_guide += f.read() + "\n"
         elif file_name.lower().endswith('.pdf'):
             try:
                 reader = PyPDF2.PdfReader(file_name)
@@ -71,17 +67,15 @@ def load_data():
             except: pass
         elif file_name.lower().endswith('.txt') and file_name != "requirements.txt":
             try:
-                with open(file_name, 'r', encoding='utf-8') as f:
-                    general_rules += f.read() + "\n"
+                with open(file_name, 'r', encoding='utf-8') as f: general_rules += f.read() + "\n"
             except:
-                with open(file_name, 'r', encoding='cp949') as f:
-                    general_rules += f.read() + "\n"
+                with open(file_name, 'r', encoding='cp949') as f: general_rules += f.read() + "\n"
     return org_text, general_rules, intranet_guide
 
 ORG_CHART_DATA, COMPANY_RULES, INTRANET_GUIDE = load_data()
 
 # --------------------------------------------------------------------------
-# [2] 외부 연동 (Flow 3중 전송 및 상세 결과 반환)
+# [2] 외부 연동 (Bot 권한 최적화 전송 로직)
 # --------------------------------------------------------------------------
 try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
@@ -103,14 +97,18 @@ def save_to_sheet(dept, name, rank, category, question, answer, status):
 def send_flow_alert(category, question, name, dept):
     if not flow_secrets: return False, "Secrets 설정 없음"
     api_key = flow_secrets.get("api_key")
-    p_id = flow_secrets.get("flow_room_code", "2786111")
+    p_id = flow_secrets.get("flow_room_code", "2786111") # 확인된 프로젝트 ID
+    
     headers = {"Content-Type": "application/json", "x-flow-api-key": api_key}
-    content = f"[🚨 챗봇 민원 알림]\n- 요청자: {name} ({dept})\n- 분류: {category}\n- 내용: {question}"
+    content = f"[🚨 챗봇 민원 알림]\n요청자: {name} ({dept})\n분류: {category}\n내용: {question}"
 
-    # 등록하신 Operation ID에 맞춘 3가지 시도
+    # ★ 봇 권한(createBotPost, createChatMessage)에 특화된 3중 전송 시도
     endpoints = [
-        (f"https://api.flow.team/v1/projects/{p_id}/posts", {"title": "🤖 챗봇 민원 접수", "body": content}),
-        (f"https://api.flow.team/v1/projects/{p_id}/posts", {"title": "🤖 챗봇 민원 접수", "content": content}),
+        # 1. 봇 게시글 작성 (createBotPost 권한용)
+        (f"https://api.flow.team/v1/bots/projects/{p_id}/posts", {"title": "🤖 챗봇 민원 접수", "content": content}),
+        # 2. 봇 채팅 메시지 발송 (createChatMessage 권한용)
+        (f"https://api.flow.team/v1/bots/projects/{p_id}/messages", {"content": content}),
+        # 3. 일반 메시지 발송 (백업)
         ("https://api.flow.team/v1/messages/room", {"room_code": p_id, "content": content})
     ]
 
@@ -127,7 +125,7 @@ def send_flow_alert(category, question, name, dept):
     return False, last_error
 
 # --------------------------------------------------------------------------
-# [3] UI 로직
+# [3] UI 및 로직
 # --------------------------------------------------------------------------
 if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 
@@ -154,16 +152,16 @@ else:
         if user['name'] in ["이경한", "관리자"]:
             st.divider()
             st.markdown("### 🛠️ 관리자 도구")
-            # ★ 테스트 결과가 사이드바에 즉시 나타나도록 수정
+            # 테스트 결과가 명확히 남도록 수정
             if st.button("🔔 Flow 연동 테스트"):
-                with st.status("플로우 서버 전송 시도 중...", expanded=True) as status:
-                    success, msg = send_flow_alert("테스트", "시스템 연동 테스트 메시지입니다.", user['name'], user['dept'])
+                with st.status("봇 전용 API 경로로 전송 시도 중...") as status:
+                    success, msg = send_flow_alert("테스트", "봇 권한 연동 테스트입니다.", user['name'], user['dept'])
                     if success:
                         status.update(label="✅ 전송 성공!", state="complete")
                         st.sidebar.success("플로우 프로젝트를 확인하세요!")
                     else:
                         status.update(label="❌ 전송 실패", state="error")
-                        st.sidebar.error(f"실패 사유: {msg}")
+                        st.sidebar.error(f"사유: {msg}")
 
     st.markdown(f"### 👋 안녕하세요, {user['name']} {user.get('rank','')}님!")
     
@@ -176,7 +174,7 @@ else:
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.chat_message("user").write(prompt)
 
-        # 시스템 지침: 요청하신 성함 언급 금지 반영
+        # 시스템 지침: 요청하신 성함 언급 금지 및 안내 번호 수정 반영
         system_instruction = f"""너는 KCIM의 HR AI 매니저야.
         [자료]: {ORG_CHART_DATA} {COMPANY_RULES} {INTRANET_GUIDE}
         
