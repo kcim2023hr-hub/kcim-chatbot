@@ -99,29 +99,29 @@ def save_to_sheet(dept, name, rank, category, question, answer, status):
 def send_flow_alert(category, question, name, dept):
     if not flow_secrets: return
     api_key = flow_secrets.get("api_key")
-    # 매니저님이 찾으신 BFLOW 고유 ID 사용
+    # 매니저님이 찾으신 고유 ID 사용
     room_code = flow_secrets.get("flow_room_code", "BFLOW_211214145658")
     
     headers = {"Content-Type": "application/json", "x-flow-api-key": api_key}
     icon = "🚨" if "시설" in category else "📢"
     
-    # 플로우 게시글 형태로 구성
+    # 404 방지를 위해 게시글(Post) 생성 API를 기본으로 사용
+    url = "https://api.flow.team/v1/projects/posts"
     payload = {
         "project_code": room_code,
         "title": f"[{icon} 챗봇 민원 접수] {name}님",
-        "content": f"- 분류: {category}\n- 요청자: {name} ({dept})\n- 내용: {question}\n- 일시: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        "body": f"- 분류: {category}\n- 요청자: {name} ({dept})\n- 내용: {question}\n- 일시: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
     }
     
-    # 플로우 게시글(Post) 생성 API로 시도
-    url = "https://api.flow.team/v1/projects/posts"
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=5)
         if response.status_code == 200:
             st.toast("✅ Flow 프로젝트에 민원이 접수되었습니다.")
         else:
-            # 실패 시 기존 메시지 방식(Room)으로 백업 시도
+            # 실패 시 일반 메시지(Room) 주소로도 전송 시도
             backup_url = "https://api.flow.team/v1/messages/room"
-            requests.post(backup_url, json={"room_code": room_code, "content": payload["content"]}, headers=headers, timeout=5)
+            backup_payload = {"room_code": room_code, "content": payload["body"]}
+            requests.post(backup_url, json=backup_payload, headers=headers, timeout=5)
     except: pass
 
 # --------------------------------------------------------------------------
