@@ -1,7 +1,6 @@
-streamlit
 openai
 gspread
 oauth2client
 pandas
 openpyxl
-PyPDF2 
+duckduckgo-search
