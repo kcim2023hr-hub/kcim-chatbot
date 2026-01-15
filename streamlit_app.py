@@ -1,78 +1,337 @@
 import streamlit as st
 from openai import OpenAI
-import pandas as pd
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
+import pandas as pd
+import time
+import os
+import re
+import PyPDF2
 
-# 1. 페이지 설정 및 제목
-st.set_page_config(page_title="KCIM 사내 챗봇", page_icon="🏢")
+# 1. 페이지 설정
+st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢")
 st.title("🤖 KCIM 사내 민원/문의 챗봇")
-st.markdown("---")
 
-# 2. API 키 및 설정 로드
+# --------------------------------------------------------------------------
+# [1] 데이터 로드
+# --------------------------------------------------------------------------
+
+# 1-1. 직원 명단 로드
+@st.cache_data
+def load_employee_db():
+    file_name = 'members.xlsx' 
+    db = {}
+    
+    # 관리자 계정 (1323)
+    db["관리자"] = {"pw": "1323", "dept": "HR팀", "rank": "매니저"}
+
+    if os.path.exists(file_name):
+        try:
+            df = pd.read_excel(file_name, engine='openpyxl')
+            df.columns = [str(c).strip() for c in df.columns]
+
+            for _, row in df.iterrows():
+                try:
+                    name = str(row['이름']).strip()
+                    dept = str(row['부서']).strip()
+                    rank = str(row['직급']).strip()
+                    phone = str(row['휴대폰 번호']).strip()
+                    phone_digits = re.sub(r'[^0-9]', '', phone)
+                    
+                    pw = phone_digits[-4:] if len(phone_digits) >= 4 else "0000"
+                    
+                    db[name] = {"pw": pw, "dept": dept, "rank": rank}
+                except:
+                    continue
+            
+            # 이경한 매니저님 비밀번호 강제 변경 (1323)
+            if "이경한" in db:
+                db["이경한"]["pw"] = "1323"
+
+        except Exception as e:
+            st.error(f"❌ 엑셀 파일 읽기 실패: {e}")
+            
+    return db
+
+EMPLOYEE_DB = load_employee_db()
+
+# 1-2. 데이터 로드 (인트라넷 가이드 추가)
+@st.cache_data
+def load_data():
+    org_text = ""
+    general_rules = ""
+    intranet_guide = "" # 인트라넷 가이드 변수
+    
+    for file_name in os.listdir('.'):
+        # 1. 조직도 파일
+        if "org" in file_name.lower() or "조직도" in file_name.lower():
+            if file_name.endswith('.txt'):
+                try:
+                    with open(file_name, 'r', encoding='utf-8') as f:
+                        org_text += f.read() + "\n"
+                except:
+                    with open(file_name, 'r', encoding='cp949') as f:
+                        org_text += f.read() + "\n"
+            continue 
+
+        # 2. 인트라넷 가이드 파일 (신규)
+        if "intranet" in file_name.lower() and file_name.endswith('.txt'):
+            try:
+                with open(file_name, 'r', encoding='utf-8') as f:
+                    intranet_guide += f.read() + "\n"
+            except:
+                with open(file_name, 'r', encoding='cp949') as f:
+                    intranet_guide += f.read() + "\n"
+            continue
+
+        # 3. PDF 규정
+        if file_name.lower().endswith('.pdf'):
+            try:
+                reader = PyPDF2.PdfReader(file_name)
+                content = ""
+                for page in reader.pages:
+                    extracted = page.extract_text()
+                    if extracted: content += extracted + "\n"
+                general_rules += f"\n\n=== [사내 규정 파일: {file_name}] ===\n{content}\n"
+            except: pass
+        
+        # 4. TXT 자료
+        elif file_name.lower().endswith('.txt') and file_name != "requirements.txt":
+            try:
+                with open(file_name, 'r', encoding='utf-8') as f: content = f.read()
+            except:
+                with open(file_name, 'r', encoding='cp949') as f: content = f.read()
+            general_rules += f"\n\n=== [참고 자료: {file_name}] ===\n{content}\n"
+
+    return org_text, general_rules, intranet_guide
+
+ORG_CHART_DATA, COMPANY_RULES, INTRANET_GUIDE = load_data()
+
+# --------------------------------------------------------------------------
+# [2] 구글 시트 및 OpenAI 설정
+# --------------------------------------------------------------------------
+sheet_url = "https://docs.google.com/spreadsheets/d/1jckiUzmefqE_PiaSLVHF2kj2vFOIItc3K86_1HPWr_4/edit?gid=1434430603#gid=1434430603"
+
 try:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+    google_secrets = st.secrets["google_sheets"]
 except Exception as e:
-    st.error(f"🔑 OpenAI API 키를 확인해주세요: {e}")
+    st.error(f"비밀번호 설정 오류: {e}")
     st.stop()
 
-# 3. 챗봇 페르소나 및 시스템 지침 설정
-# 지침: 상담 번호 02-772-5806 고정 및 성함 언급 금지 반영
-SYSTEM_PROMPT = """너는 케이씨아이엠(KICM)의 HR팀 매니저이자 사내 민원 처리 전문가야.
-1. 임직원들에게 항상 정중하고 신뢰감 있는 태도로 답변해.
-2. 상담 안내 번호는 반드시 02-772-5806으로 안내해.
-3. 답변 시 특정 담당자의 성함(예: 이경한 등)은 절대 언급하지 마.
-4. 직접적인 해결이 어려운 복잡한 시설 관리나 제도 문의는 '담당 부서의 확인이 필요합니다. 내용을 정리하여 전달하였으니 잠시만 기다려 주세요.'라고 안내해.
-5. 케이씨아이엠은 BIM 및 건설 IT 분야의 No.1 기업이라는 자부심을 가지고 답변에 임해줘.
-"""
+def save_to_sheet(dept, name, rank, category, question, answer, status):
+    try:
+        scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(google_secrets), scope)
+        gs_client = gspread.authorize(creds)
+        sheet = gs_client.open_by_url(sheet_url).worksheet("응답시트")
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        sheet.append_row([now, dept, name, rank, category, question, answer, status]) 
+    except Exception as e:
+        pass
 
-# 4. 채팅 히스토리 초기화
-if "messages" not in st.session_state:
-    st.session_state.messages = [
-        {"role": "assistant", "content": "반갑습니다! KICM HR팀 AI 매니저입니다. 😊\n사내 제도, 시설 관리, 기타 궁금하신 점을 말씀해 주세요.\n(전화 상담: 02-772-5806)"}
-    ]
+# 텍스트 요약 함수
+def summarize_text(text):
+    if len(text) < 30:
+        return text
+    try:
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "이 내용을 핵심만 간략하게 1~2문장으로 요약해줘."},
+                {"role": "user", "content": text}
+            ],
+            temperature=0
+        )
+        return completion.choices[0].message.content.strip()
+    except:
+        return text[:100] + "..."
 
-# 5. 기존 대화 내용 표시
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.write(msg["content"])
+def check_finish_intent(user_input):
+    try:
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "사용자가 '네, 없습니다', '종료', '끝' 등 대화를 끝내는 의도면 'FINISH', 질문이 이어지면 'CONTINUE'로 답해."},
+                {"role": "user", "content": user_input}
+            ],
+            temperature=0
+        )
+        return completion.choices[0].message.content.strip()
+    except:
+        return "CONTINUE"
 
-# 6. 사용자 입력 및 답변 생성
-if prompt := st.chat_input("질문 내용을 입력하세요..."):
-    # 사용자 메시지 추가
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.write(prompt)
+# --------------------------------------------------------------------------
+# [3] 메인 로직
+# --------------------------------------------------------------------------
+def login():
+    st.header("🔒 임직원 접속 (신원확인)")
+    with st.form("login_form"):
+        col1, col2 = st.columns(2)
+        input_name = col1.text_input("성명")
+        input_pw = col2.text_input("비밀번호 (휴대폰 뒷 4자리)", type="password")
+        if st.form_submit_button("접속하기"):
+            if input_name in EMPLOYEE_DB and EMPLOYEE_DB[input_name]["pw"] == input_pw:
+                st.session_state["logged_in"] = True
+                st.session_state["user_info"] = {
+                    "dept": EMPLOYEE_DB[input_name]["dept"],
+                    "name": input_name,
+                    "rank": EMPLOYEE_DB[input_name]["rank"]
+                }
+                st.rerun()
+            else:
+                st.error("정보가 일치하지 않습니다.")
 
-    # GPT 답변 생성
-    with st.chat_message("assistant"):
-        with st.spinner("답변을 준비 중입니다..."):
-            try:
-                # 시스템 프롬프트를 포함하여 메시지 구성
-                messages_for_api = [{"role": "system", "content": SYSTEM_PROMPT}] + [
-                    {"role": m["role"], "content": m["content"]} for m in st.session_state.messages
-                ]
-                
-                response = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=messages_for_api,
-                    temperature=0.7
-                )
-                
-                answer = response.choices[0].message.content
-                st.write(answer)
-                
-                # 답변 저장
-                st.session_state.messages.append({"role": "assistant", "content": answer})
-                
-            except Exception as e:
-                st.error(f"⚠️ 답변 생성 중 오류가 발생했습니다: {e}")
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
 
-# 7. 사이드바 - 관리 도구 (로그 확인용)
-with st.sidebar:
-    st.header("⚙️ 관리자 메뉴")
-    if st.button("대화 기록 초기화"):
-        st.session_state.messages = []
-        st.rerun()
+if not st.session_state["logged_in"]:
+    login()
+else:
+    user = st.session_state["user_info"]
     
-    st.divider()
-    st.info(f"현재 버전: v1.1 (Stable)\n상담 번호: 02-772-5806")
+    # ----------------------------------------------------------------------
+    # [사이드바]
+    # ----------------------------------------------------------------------
+    with st.sidebar:
+        st.markdown(f"👤 **{user['name']} {user['rank']}**")
+        st.markdown(f"🏢 **{user['dept']}**")
+        if st.button("로그아웃"):
+            st.session_state.clear()
+            st.rerun()
+        
+        if user['name'] in ["이경한", "관리자"]:
+            st.divider()
+            st.markdown("### 🛠️ 관리자 도구")
+            
+            with st.expander("📂 시스템 파일 현황", expanded=False):
+                all_files = sorted(os.listdir('.'))
+                pdfs = [f for f in all_files if f.lower().endswith('.pdf')]
+                txts = [f for f in all_files if f.lower().endswith('.txt') and f != 'requirements.txt']
+                excels = [f for f in all_files if f.lower().endswith(('.xlsx', '.csv'))]
+                
+                if pdfs:
+                    st.markdown("**📄 규정 문서 (PDF)**")
+                    for f in pdfs: st.caption(f"- {f}")
+                if txts:
+                    st.markdown("**📝 텍스트 데이터 (TXT)**")
+                    for f in txts: st.caption(f"- {f}")
+                if excels:
+                    st.markdown("**📊 엑셀 데이터 (XLSX/CSV)**")
+                    for f in excels: st.caption(f"- {f}")
+
+            with st.expander("👀 데이터 로드 상태 확인", expanded=False):
+                st.write("✅ [1] 조직도 데이터")
+                st.text(ORG_CHART_DATA[:100] + "...")
+                st.write("✅ [2] 인트라넷 가이드")
+                st.text(INTRANET_GUIDE[:100] + "...") # 로드 확인용
+
+    # ----------------------------------------------------------------------
+    # [메인 화면]
+    # ----------------------------------------------------------------------
+    st.markdown(f"### 👋 안녕하세요, {user['name']} {user['rank']}님!")
+
+    if "messages" not in st.session_state:
+        st.session_state["messages"] = [{"role": "assistant", "content": "반갑습니다! 👋 **복지, 규정, 불편사항, 시설 이용** 등 궁금한 점이 있으시면 언제든 물어보세요."}]
+    
+    if "awaiting_confirmation" not in st.session_state:
+        st.session_state["awaiting_confirmation"] = False
+
+    for msg in st.session_state.messages:
+        st.chat_message(msg["role"]).write(msg["content"])
+
+    if prompt := st.chat_input("내용을 입력하세요"):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        st.chat_message("user").write(prompt)
+
+        # [CASE 1] 종료 확인
+        if st.session_state["awaiting_confirmation"]:
+            intent = check_finish_intent(prompt)
+            if intent == "FINISH":
+                end_msg = "늘 좋은 하루 보내세요😊"
+                st.session_state.messages.append({"role": "assistant", "content": end_msg})
+                st.chat_message("assistant").write(end_msg)
+                st.session_state["awaiting_confirmation"] = False
+                st.stop() 
+            else:
+                st.session_state["awaiting_confirmation"] = False
+
+        # [CASE 2] 답변 생성
+        if not st.session_state["awaiting_confirmation"]:
+            
+            system_instruction = f"""
+            너는 KCIM의 HR/총무 AI 매니저야. 아래 [사고 과정]을 순서대로 거쳐서 답변해.
+
+            [1단계: 질문자 파악]
+            - 질문자: {user['name']} ({user['dept']} {user['rank']})
+            
+            [2단계: 사내 데이터 우선 검색]
+            {ORG_CHART_DATA}
+            {COMPANY_RULES}
+            {INTRANET_GUIDE}
+
+            [3단계: 답변 작성 원칙 및 카테고리 분류]
+            
+            ★ 0순위 (시설 관련 문의) ★
+            - 질문이 '시설', '주차', '청소', '건물', '수리', '냉난방' 관련이면:
+            - 답변: "시설 관련 문의는 **HR팀 이경한 매니저에게 문의바랍니다.**"
+            - 태그: [CATEGORY:시설/환경] [ACTION]
+            - 더 이상 다른 말을 덧붙이지 마.
+            
+            ★ 1순위 (어울지기/인트라넷 사용법 문의) ★
+            - 질문이 '휴가 신청 어디서', '법인카드 결재 방법', '증명서 발급' 등 시스템 사용법이면:
+            - 답변: [KCIM 어울지기 가이드] 데이터를 참고하여 "어울지기 접속 > 좌측 메뉴 [OOO] > [OOO]" 순서로 정확하게 안내해.
+            - 태그: [CATEGORY:프로세스/규정]
+
+            2. 일반 답변 시:
+               - 사내 자료가 있으면 그것을 바탕으로 답해.
+               - 사내 자료가 없으면 일반 지식으로 답하되 경고 문구("⚠️ 일반적인 기준 안내")를 붙여.
+               - 담당자 연결이 필요하면 [ACTION] 태그를 붙여.
+
+            3. ★ 필수: 답변 맨 마지막 줄에 질문의 성격을 아래 중 하나로 분류해서 태그를 달아줘.
+               - [CATEGORY:인사/근태]
+               - [CATEGORY:총무/복지]
+               - [CATEGORY:시설/환경]
+               - [CATEGORY:IT/보안]
+               - [CATEGORY:프로세스/규정]
+               - [CATEGORY:기타]
+            """
+            
+            try:
+                completion = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[{"role": "system", "content": system_instruction}, {"role": "user", "content": prompt}]
+                )
+                raw_response = completion.choices[0].message.content
+            
+            except Exception as e:
+                st.error(f"오류: {e}")
+                raw_response = "[INFO] 시스템 오류가 발생했습니다."
+
+            # 태그 및 상태 추출
+            category = "기타"
+            if "[CATEGORY:" in raw_response:
+                match = re.search(r'\[CATEGORY:(.*?)\]', raw_response)
+                if match:
+                    category = match.group(1)
+                    raw_response = raw_response.replace(match.group(0), "")
+
+            if "[ACTION]" in raw_response:
+                final_status = "담당자확인필요"
+                clean_response = raw_response.replace("[ACTION]", "").strip()
+            else:
+                final_status = "처리완료"
+                clean_response = raw_response.replace("[INFO]", "").strip()
+
+            # 요약 실행
+            summary_q = summarize_text(prompt)
+            summary_a = summarize_text(clean_response)
+
+            # 시트에 저장
+            save_to_sheet(user['dept'], user['name'], user['rank'], category, summary_q, summary_a, final_status)
+
+            full_response = clean_response + "\n\n**더 이상의 민원은 없으실까요?**"
+            st.session_state.messages.append({"role": "assistant", "content": full_response})
+            st.chat_message("assistant").write(full_response)
+            st.session_state["awaiting_confirmation"] = True
