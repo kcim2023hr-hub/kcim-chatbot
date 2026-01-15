@@ -109,7 +109,6 @@ except Exception as e:
     st.error(f"비밀번호 설정 오류: {e}")
     st.stop()
 
-# ★ [수정] 카테고리(category) 인자 추가
 def save_to_sheet(dept, name, rank, category, question, answer, status):
     try:
         scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
@@ -117,11 +116,28 @@ def save_to_sheet(dept, name, rank, category, question, answer, status):
         gs_client = gspread.authorize(creds)
         sheet = gs_client.open_by_url(sheet_url).worksheet("응답시트")
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        # 구글 시트에 저장되는 순서: [시간, 부서, 이름, 직급, 분류, 질문, 답변, 상태]
         sheet.append_row([now, dept, name, rank, category, question, answer, status]) 
     except Exception as e:
         pass
+
+# ★ [신규 기능] 텍스트 요약 함수
+def summarize_text(text):
+    # 너무 짧으면 요약 안 함
+    if len(text) < 30:
+        return text
+    
+    try:
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "이 내용을 핵심만 간략하게 1~2문장으로 요약해줘."},
+                {"role": "user", "content": text}
+            ],
+            temperature=0
+        )
+        return completion.choices[0].message.content.strip()
+    except:
+        return text[:100] + "..." # 에러 시 앞부분만 자름
 
 def check_finish_intent(user_input):
     try:
@@ -208,7 +224,7 @@ else:
     st.markdown(f"### 👋 안녕하세요, {user['name']} {user['rank']}님!")
 
     if "messages" not in st.session_state:
-        st.session_state["messages"] = [{"role": "assistant", "content": "반갑습니다! 👋 **복지, 규정, 시설 이용, 불편사항** 등 궁금한 점이 있으시면 언제든 물어보세요."}]
+        st.session_state["messages"] = [{"role": "assistant", "content": "반갑습니다! 👋 **복지, 규정, 조직도, 시설 이용** 등 궁금한 점이 있으시면 언제든 물어보세요."}]
     
     if "awaiting_confirmation" not in st.session_state:
         st.session_state["awaiting_confirmation"] = False
@@ -259,10 +275,10 @@ else:
                - 담당자 연결이 필요하면 [ACTION] 태그를 붙여.
 
             2. ★ 필수: 답변 맨 마지막 줄에 질문의 성격을 아래 중 하나로 분류해서 태그를 달아줘.
-               - [CATEGORY:인사/근태] (휴가, 연봉, 평가, 증명서 등)
-               - [CATEGORY:총무/복지] (경조사, 비품, 차량, 복리후생 등)
-               - [CATEGORY:시설/환경] (건물, 주차, 수리, 청소 등)
-               - [CATEGORY:IT/보안] (PC, 와이파이, 소프트웨어 등)
+               - [CATEGORY:인사/근태]
+               - [CATEGORY:총무/복지]
+               - [CATEGORY:시설/환경]
+               - [CATEGORY:IT/보안]
                - [CATEGORY:기타]
             """
             
@@ -277,17 +293,14 @@ else:
                 st.error(f"오류: {e}")
                 raw_response = "[INFO] 시스템 오류가 발생했습니다."
 
-            # 태그 파싱 및 정제
+            # 태그 및 상태 추출
             category = "기타"
-            
-            # 카테고리 추출
             if "[CATEGORY:" in raw_response:
                 match = re.search(r'\[CATEGORY:(.*?)\]', raw_response)
                 if match:
                     category = match.group(1)
-                    raw_response = raw_response.replace(match.group(0), "") # 화면에는 안 보이게 제거
+                    raw_response = raw_response.replace(match.group(0), "")
 
-            # 상태 추출
             if "[ACTION]" in raw_response:
                 final_status = "담당자확인필요"
                 clean_response = raw_response.replace("[ACTION]", "").strip()
@@ -295,8 +308,12 @@ else:
                 final_status = "처리완료"
                 clean_response = raw_response.replace("[INFO]", "").strip()
 
-            # 시트에 저장 (카테고리 포함)
-            save_to_sheet(user['dept'], user['name'], user['rank'], category, prompt, clean_response, final_status)
+            # ★ 요약 실행 (시트 기록용)
+            summary_q = summarize_text(prompt)
+            summary_a = summarize_text(clean_response)
+
+            # 시트에 저장 (요약된 내용 사용)
+            save_to_sheet(user['dept'], user['name'], user['rank'], category, summary_q, summary_a, final_status)
 
             full_response = clean_response + "\n\n**더 이상의 민원은 없으실까요?**"
             st.session_state.messages.append({"role": "assistant", "content": full_response})
