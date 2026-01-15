@@ -141,7 +141,7 @@ else:
         if st.button("🚪 안전하게 로그아웃", use_container_width=True):
             st.session_state.clear()
             st.rerun()
-        st.markdown("<p class='beta-notice'>이 챗봇은 현재 베타테스트중입니다.<br>오류가 나도 이해해주세요:)</p>", unsafe_allow_html=True)
+        st.markdown("<p class='beta-notice'> ※ 이 챗봇은 현재 베타 테스트중입니다.<br>오류가 많아도 이해 바랍니다:)</p>", unsafe_allow_html=True)
 
     # 대화창 렌더링
     for msg in st.session_state.messages:
