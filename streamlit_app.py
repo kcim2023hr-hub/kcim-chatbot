@@ -12,89 +12,82 @@ import PyPDF2
 # 1. 페이지 설정
 st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢", layout="centered")
 
-# --- CSS: 빈 박스 제거 및 로그인 폼 카드 스타일화 ---
+# --- UI 최적화 커스텀 CSS (박스 형태 제거 및 텍스트 중심 레이아웃) ---
 st.markdown("""
     <style>
     /* 전체 배경 설정 */
     .stApp {
-        background-color: #f4f7f9;
+        background-color: #ffffff; /* 순백색 배경으로 변경 */
     }
     
     /* 메인 콘텐츠 중앙 정렬 및 너비 제한 */
     .block-container {
-        max-width: 750px !important;
+        max-width: 800px !important;
         padding-top: 5rem !important;
+        padding-bottom: 5rem !important;
     }
 
-    /* [해결] 로그인 폼 자체를 카드 박스로 스타일링 (빈 박스 방지) */
+    /* [수정] 로그인 폼 및 웰컴 박스 디자인 제거 (Flat 디자인) */
     div[data-testid="stForm"] {
-        background-color: #ffffff !important;
-        padding: 40px !important;
-        border-radius: 20px !important;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.05) !important;
-        border: 1px solid #e1e4e8 !important;
-    }
-
-    /* 입력란 및 라벨 폰트 크기 최적화 */
-    .stTextInput label {
-        font-size: 16px !important;
-        font-weight: 600 !important;
-        color: #333 !important;
-    }
-
-    /* 안내 문구(st.info) 스타일 최적화 */
-    div[data-testid="stNotification"] {
-        font-size: 14px !important;
-        background-color: #f0f7ff !important;
+        background-color: transparent !important;
+        padding: 20px 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
         border: none !important;
     }
 
     /* 사이드바 디자인 */
     section[data-testid="stSidebar"] {
-        background-color: #ffffff !important;
-        border-right: 1px solid #dee2e6;
+        background-color: #f8f9fa !important;
+        border-right: 1px solid #eee;
     }
     .sidebar-user-info {
-        background-color: #f8f9fa;
-        padding: 20px;
-        border-radius: 15px;
-        border: 1px solid #edf0f2;
-        margin-bottom: 20px;
+        padding: 15px;
         text-align: center;
+        border-bottom: 1px solid #eee;
+        margin-bottom: 20px;
     }
 
-    /* 웰컴 인삿말 스타일 */
-    .greeting-card {
-        background-color: #ffffff;
-        padding: 35px;
-        border-radius: 20px;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.05);
-        border: 1px solid #e1e4e8;
+    /* [수정] 메인 웰컴 메시지 스타일 (흰 박스 제거) */
+    .greeting-container {
         text-align: center;
-        margin-bottom: 25px;
+        margin-bottom: 40px;
+        padding: 20px 0;
     }
     .greeting-title {
-        font-size: 30px !important;
+        font-size: 36px !important;
         font-weight: 800;
         color: #1a1c1e;
-        margin-bottom: 10px;
+        margin-bottom: 15px;
     }
     .greeting-subtitle {
-        font-size: 18px !important;
-        color: #6c757d;
+        font-size: 22px !important;
+        color: #555;
+        font-weight: 400;
+    }
+    
+    /* 입력란 및 라벨 최적화 */
+    .stTextInput label {
+        font-size: 16px !important;
+        font-weight: 600 !important;
+    }
+
+    /* 채팅 메시지 너비 최적화 */
+    .stChatMessage {
+        background-color: transparent !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------------
-# [1] 데이터 및 설정 로드
+# [1] 데이터 로드 로직
 # --------------------------------------------------------------------------
 
 @st.cache_data
 def load_employee_db():
     file_name = 'members.xlsx' 
     db = {}
-    # KCIM(KICM)은 1990년 창립된 건설 IT 선도 기업입니다.
+    # [cite: 2026-01-02] KICM(KCIM)은 1990년 창립된 건설 IT 분야의 선도주자입니다.
     db["관리자"] = {"pw": "1323", "dept": "HR팀", "rank": "매니저"}
     if os.path.exists(file_name):
         try:
@@ -111,7 +104,7 @@ def load_employee_db():
                     db[name] = {"pw": pw, "dept": dept, "rank": rank}
                 except: continue
             if "이경한" in db: db["이경한"]["pw"] = "1323"
-        except Exception as e: st.error(f"❌ 엑셀 파일 읽기 실패: {e}")
+        except Exception as e: st.error(f"❌ 데이터 로드 오류: {e}")
     return db
 
 EMPLOYEE_DB = load_employee_db()
@@ -119,7 +112,7 @@ EMPLOYEE_DB = load_employee_db()
 @st.cache_data
 def load_data():
     org_text, general_rules, intranet_guide = "", "", ""
-    # KCIM은 BIM 컨설팅 및 Autodesk Gold 파트너사로서 설계/시공 분야를 지원합니다.
+    # [cite: 2026-01-02] KCIM은 BIM 컨설팅 및 Autodesk Gold 파트너사 서비스를 제공합니다.
     for file_name in os.listdir('.'):
         if "org" in file_name.lower() or "조직도" in file_name.lower():
             try:
@@ -141,7 +134,7 @@ def load_data():
 
 ORG_CHART_DATA, COMPANY_RULES, INTRANET_GUIDE = load_data()
 
-# 업무 분장표 데이터 (HR팀 이경한 매니저: 시설/차량/근태 관리 등)
+# 업무 분장 데이터 [cite: 2026-01-02]
 WORK_DISTRIBUTION = """
 [경영관리본부 업무 분장표]
 - 이경한 매니저: 사옥/법인차량 관리, 현장 숙소 관리, 근태 관리, 행사 기획/실행, 임직원 제도 수립
@@ -166,7 +159,7 @@ except Exception as e:
     st.stop()
 
 def get_dynamic_greeting():
-    """접속 시간에 따른 인사말 생성"""
+    """시간대에 따른 맞춤형 인사말"""
     hour = datetime.now().hour
     if 5 <= hour < 12: return "좋은 아침입니다! 오늘도 활기차게 시작해볼까요?"
     elif 12 <= hour < 18: return "즐거운 오후입니다. 업무 중에 궁금한 점이 있으신가요?"
@@ -182,15 +175,14 @@ def save_to_sheet(dept, name, rank, category, question, answer, status):
     except: pass
 
 # --------------------------------------------------------------------------
-# [3] UI 실행 로직
+# [3] 메인 실행 로직
 # --------------------------------------------------------------------------
 if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 
-# [로그인 화면] - 최상단 빈 박스 문제 해결
+# [로그인 화면] - 박스 제거 및 타이틀 포함
 if not st.session_state["logged_in"]:
-    # 폼 내부에 타이틀을 포함하여 카드 박스 하나만 보이도록 구성
     with st.form("login_form"):
-        st.markdown("<h2 style='text-align: center; color: #1a1c1e; margin-bottom: 10px;'>🏢 KCIM 임직원 민원 챗봇</h2>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; color: #1a1c1e; margin-bottom: 10px;'>🏢 KCIM 임직원 민원 챗봇</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; font-weight: bold; color: #555; margin-bottom: 25px;'>🔒 임직원 신원확인</p>", unsafe_allow_html=True)
         
         input_name = st.text_input("성명", placeholder="이름을 입력하세요")
@@ -209,58 +201,57 @@ if not st.session_state["logged_in"]:
 else:
     user = st.session_state["user_info"]
     with st.sidebar:
-        st.markdown("<h2 style='text-align: center; color: #E74C3C;'>🏢 KCIM</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center; color: #333;'>🏢 KCIM</h2>", unsafe_allow_html=True)
         st.markdown("---")
-        st.markdown(f"""
-        <div class='sidebar-user-info'>
-            <small style='color: #6c757d;'>인증된 사용자</small><br>
-            <b style='font-size: 20px;'>{user['name']} {user['rank']}</b><br>
-            <span style='color: #28a745; font-weight: 600;'>{user['dept']}</span>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"**{user['name']} {user['rank']}**")
+        st.markdown(f"<span style='color: #28a745; font-weight: 600;'>{user['dept']}</span>", unsafe_allow_html=True)
         
+        st.markdown("---")
         st.subheader("🚀 민원 카테고리")
-        cats = [("🛠️ 시설/수리", "유지보수 및 장비교체"), ("👤 입퇴사/이동", "인사, 채용, 증명서"), ("📋 프로세스/규정", "사내시스템, 규정안내"), ("🎁 복지/휴가", "경조사 및 교육지원"), ("📢 불편사항", "근무환경 개선요청"), ("💬 일반/기타", "단순질의 및 협조")]
+        cats = [("🛠️ 시설/수리", "유지보수"), ("👤 입퇴사/이동", "인사/채용"), ("📋 프로세스/규정", "시스템/규정"), ("🎁 복지/휴가", "복리후생"), ("📢 불편사항", "환경개선"), ("💬 일반/기타", "단순질의")]
         for title, desc in cats:
-            st.markdown(f"<div style='background-color: white; padding: 10px; border-radius: 10px; border: 1px solid #eee; margin-bottom: 8px; font-size: 14px;'><b>{title}</b><br><small style='color: #888;'>{desc}</small></div>", unsafe_allow_html=True)
+            st.markdown(f"**{title}** ({desc})")
         
         st.markdown("---")
-        if st.button("🚪 안전하게 로그아웃", use_container_width=True):
+        if st.button("🚪 로그아웃", use_container_width=True):
             st.session_state.clear()
             st.rerun()
 
-    # 메인 채팅창 웰컴 인삿말
+    # [수정] 메인 인삿말 카드 디자인 제거
     if "messages" not in st.session_state:
         dynamic_greeting = get_dynamic_greeting()
+        # [cite: 2026-01-02] 이경한 매니저는 사옥/차량/숙소 및 근태 관리를 담당하는 HR 전문가입니다.
         greeting_html = f"""
-        <div class='greeting-card'>
+        <div class='greeting-container'>
             <p class="greeting-title">{user['name']} {user['rank']}님, 반갑습니다! 👋</p>
             <p class="greeting-subtitle">{dynamic_greeting}</p>
         </div>
         """
         st.session_state["messages"] = [{"role": "assistant", "content": greeting_html, "is_html": True}]
     
+    # 대화 기록 렌더링
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             if msg.get("is_html"): st.markdown(msg["content"], unsafe_allow_html=True)
             else: st.write(msg["content"])
 
+    # 채팅 입력
     if prompt := st.chat_input("문의 내용을 입력하세요"):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.write(prompt)
 
-        # KCIM HR 매니저 페르소나 답변 생성
-        system_instruction = f""" 너는 1990년 창립된 KCIM의 전문 HR 매니저야. {user['name']}님에게 정중하게 답변해줘. [사내 데이터] {ORG_CHART_DATA} {COMPANY_RULES} {INTRANET_GUIDE} {WORK_DISTRIBUTION} [원칙] 1. 번호: 02-772-5806. 2. 호칭: 성함+매니저/책임. 3. 시설/차량/숙소: 이경한 매니저 안내 및 [ACTION] 태그. 4. 태그: [CATEGORY:분류명] """
+        # 시스템 지침 설정
+        system_instruction = f"""너는 1990년 창립된 KCIM의 전문 HR 매니저야 [cite: 2026-01-02]. {user['name']}님에게 정중하게 답변해줘. [사내 데이터] {ORG_CHART_DATA} {COMPANY_RULES} {INTRANET_GUIDE} {WORK_DISTRIBUTION} [원칙] 1. 번호: 02-772-5806. 2. 호칭: 성함+매니저/책임. 3. 시설/차량/숙소: 이경한 매니저 안내 및 [ACTION] 태그 추가."""
         
         try:
             completion = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "system", "content": system_instruction}, {"role": "user", "content": prompt}])
             raw_response = completion.choices[0].message.content
-            category = re.search(r'\[CATEGORY:(.*?)\]', raw_response).group(1) if "[CATEGORY:" in raw_response else "기타"
-            clean_ans = raw_response.replace("[ACTION]", "").replace(f"[CATEGORY:{category}]", "").strip()
+            clean_ans = raw_response.replace("[ACTION]", "").strip()
             
-            save_to_sheet(user['dept'], user['name'], user['rank'], category, prompt[:30], clean_ans[:30], "처리완료")
+            # 요약 저장 로직 (필요 시 유지)
+            save_to_sheet(user['dept'], user['name'], user['rank'], "민원", prompt[:30], clean_ans[:30], "처리완료")
             
-            full_response = clean_ans + f"\n\n**{user['name']}님, 다른 문의 사항이 더 있으실까요?**"
+            full_response = clean_ans + f"\n\n**{user['name']}님, 더 궁금하신 점이 있으실까요?**"
             st.session_state.messages.append({"role": "assistant", "content": full_response})
             with st.chat_message("assistant"): st.write(full_response)
         except: st.error("답변 생성 중 오류가 발생했습니다.")
