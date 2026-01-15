@@ -14,7 +14,7 @@ st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢")
 st.title("🤖 KCIM 사내 민원/문의 챗봇")
 
 # --------------------------------------------------------------------------
-# [1] 데이터 로드 로직 (기존 유지)
+# [1] 데이터 로드 로직
 # --------------------------------------------------------------------------
 
 # 1-1. 직원 명단 로드
@@ -74,7 +74,7 @@ def load_data():
 
 ORG_CHART_DATA, COMPANY_RULES, INTRANET_GUIDE = load_data()
 
-# 업무 분장표 데이터 (최신 지침 반영) [cite: 2026-01-02]
+# 업무 분장표 데이터
 WORK_DISTRIBUTION = """
 [경영관리본부 업무 분장표]
 - 이경한: 사옥/법인차량 관리, 현장 숙소 관리, 근태/연차/휴가 관리, 행사 기획/실행, 제증명 발급, 지출결의(출장/숙소), 간식구매 등
@@ -131,6 +131,18 @@ if not st.session_state["logged_in"]:
         col1, col2 = st.columns(2)
         input_name = col1.text_input("성명")
         input_pw = col2.text_input("비밀번호 (휴대폰 뒷 4자리)", type="password")
+        
+        # --- 추가된 설명 문구 구역 ---
+        st.markdown("""
+        <div style="background-color: #f0f2f6; padding: 10px; border-radius: 5px; border-left: 5px solid #ff4b4b;">
+            <p style="margin: 0; font-size: 0.9rem; color: #31333F;">
+                💡 <b>민원 데이터 관리를 위해 해당 임직원 신원 확인을 진행하고 있습니다.</b><br>
+                비밀번호는 본인의 휴대폰 번호 뒷 4자리를 입력해 주세요.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        # ---------------------------
+
         if st.form_submit_button("접속하기"):
             if input_name in EMPLOYEE_DB and EMPLOYEE_DB[input_name]["pw"] == input_pw:
                 st.session_state["logged_in"] = True
