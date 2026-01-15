@@ -50,20 +50,22 @@ EMPLOYEE_DB = load_employee_db()
 @st.cache_data
 def load_rules():
     combined_rules = ""
-    guide_content = "" # 가이드라인 내용은 맨 앞으로 빼기 위해 따로 저장
+    guide_content = "" 
     
+    # 파일 읽기 시작
     for file_name in os.listdir('.'):
-        
         # (1) PDF 파일 읽기
         if file_name.lower().endswith('.pdf'):
             try:
                 reader = PyPDF2.PdfReader(file_name)
                 text = ""
                 for page in reader.pages:
-                    text += page.extract_text() + "\n"
+                    extracted = page.extract_text()
+                    if extracted:
+                        text += extracted + "\n"
                 combined_rules += f"\n\n--- [규정 파일: {file_name}] ---\n{text}"
             except Exception as e:
-                print(f"PDF 오류: {file_name}")
+                print(f"PDF 오류: {file_name} - {e}")
 
         # (2) TXT 파일 읽기
         elif file_name.lower().endswith('.txt') and file_name != "requirements.txt":
@@ -75,20 +77,20 @@ def load_rules():
                     with open(file_name, 'r', encoding='cp949') as f:
                         text = f.read()
                 
-                # guide.txt는 특별 대우
                 if "guide" in file_name.lower():
                     guide_content += f"\n\n[★ 필독 가이드라인: {file_name}]\n{text}\n"
                 else:
                     combined_rules += f"\n\n--- [참고 자료: {file_name}] ---\n{text}"
             except Exception as e:
-                print(f"TXT 오류: {file_name}")
+                print(f"TXT 오류: {file_name} - {e}")
 
-    # 가이드라인을 최상단에 배치하여 AI가 먼저 읽게 함
     final_content = guide_content + combined_rules
     
     if not final_content:
         return "등록된 규정 파일이 없습니다."
     else:
+        # 너무 길 경우를 대비해 길이 로그 출력 (관리자용)
+        print(f"총 규정 길이: {len(final_content)} 자")
         return final_content
 
 COMPANY_RULES = load_rules()
@@ -118,8 +120,9 @@ def save_to_sheet(dept, name, rank, question, answer, status):
 
 def check_finish_intent(user_input):
     try:
+        # 모델 변경: gpt-4o-mini
         completion = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "사용자가 '네, 없습니다', '종료', '끝', '수고하세요' 등 대화를 끝내는 말이거나, 단순한 인사면 'FINISH'. 질문이 이어지면 'CONTINUE'로 답해."},
                 {"role": "user", "content": user_input}
@@ -205,13 +208,17 @@ else:
             """
             
             try:
+                # ★ 모델 변경: gpt-4o-mini (대용량 처리에 강함)
                 completion = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
+                    model="gpt-4o-mini",
                     messages=[{"role": "system", "content": system_instruction}, {"role": "user", "content": prompt}]
                 )
                 raw_response = completion.choices[0].message.content
+            
             except Exception as e:
-                raw_response = "[INFO] 시스템 오류가 발생했습니다."
+                # ★ 에러 발생 시 원인을 화면에 출력 (디버깅용)
+                st.error(f"🚨 시스템 오류 발생: {e}")
+                raw_response = "[INFO] 죄송합니다. 내부 오류로 답변을 생성할 수 없습니다."
 
             if "[ACTION]" in raw_response:
                 final_status = "담당자확인필요"
