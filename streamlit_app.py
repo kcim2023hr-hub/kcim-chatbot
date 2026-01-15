@@ -29,8 +29,8 @@ st.markdown("""
     div[data-testid="stSidebar"] .stButton > button div[data-testid="stMarkdownContainer"] p { font-size: 13px; color: #666; line-height: 1.5; white-space: pre-line; text-align: left; margin: 0; }
     div[data-testid="stSidebar"] .stButton > button div[data-testid="stMarkdownContainer"] p::first-line { font-size: 16px; font-weight: 700; color: #1a1c1e; }
     
-    /* 베타 테스트 안내 문구 스타일 */
-    .beta-notice { font-size: 12px; color: #999; text-align: center; line-height: 1.6; }
+    /* [수정] 안내 문구 스타일 및 상단 여백 확대 */
+    .beta-notice { font-size: 12px; color: #999; text-align: center; margin-top: 40px; line-height: 1.6; }
 
     /* 중앙 플랫 인사말 디자인 */
     .greeting-container { text-align: center; margin-bottom: 45px; padding: 25px 0; }
@@ -44,23 +44,23 @@ st.markdown("""
 # --------------------------------------------------------------------------
 COMPANY_DOCUMENTS_INFO = """
 [KCIM 최신 사내 규정 파일 지식]
-1. 2025년_복지제도.pdf: 연차, Refresh 휴가, 자녀 학자금 등 복지 전반
-2. 2025년 달라지는 육아지원제도.pdf: 육아휴직, 단축근무, 정부지원 등
+1. 2025년_복지제도.pdf: 연차, Refresh 휴가, 자녀 학자금 등 전반
+2. 2025년 달라지는 육아지원제도.pdf: 육아휴직, 단축근무, 모성보호 등
 3. 2025_현장근무지원금_최종.pdf: 식대, 교통비, 원거리 지원금 지침
 4. 사고발생처리 매뉴얼.pdf: 사고 보고 및 산재처리 프로세스
-5. 행동규범.pdf: 윤리 규정, 임직원 행동 수칙 및 처리
-6. 취업규칙_2025.pdf: 근무시간, 휴가, 징계 등 회사 운영 규칙
-7. 노동부 지원금 매뉴얼.pdf: 정부지원금 신청 방법 안내
-8. KCIM 계약서 검토 프로세스.pdf: 계약서 작성 및 법무검토 절차
-9. 2024 재택근무 내부프로세스.pdf: 재택 신청 절차 및 근태 기록
-10. 2024_재택근무_운영규정.pdf: 재택 운영 기준 및 예외 사항
-11. 연차유예 및 대체휴가 지침.pdf: 연차이월 및 대체휴가 소진기한
-12. 임직원 연락망_2025.pdf: 부서별 담당자 및 연락처 정보
-13. 도서구입 및 도서관 운영지침.docx: 도서 신청 및 지식경영 절차
-14. 사내동호회운영규정.pdf: 동호회 창설 및 지원금 운영
-15. 사내 와이파이 정보.pdf: 층별 SSID 및 비밀번호 안내
-16. 2023_KCIM_사내도서지원.pptx: 사내 도서 지원 제도 홍보
-17. 경영관리본부 업무분장표.pdf: 본부별 담당 직무 및 부서 역할
+5. 행동규범.pdf: 윤리 규정, 행동 수칙 및 처리
+6. 취업규칙_2025.pdf: 근무시간, 휴가, 징계 등 전반 규칙
+7. 노동부 지원금 매뉴얼.pdf: 정부지원금 신청 안내
+8. KCIM 계약서 검토 프로세스.pdf: 계약서 작성 및 법무검토
+9. 2024 재택근무 내부프로세스.pdf: 재택 신청 및 근태 기록
+10. 2024_재택근무_운영규정.pdf: 재택 운영 기준 및 예외
+11. 연차유예 및 대체휴가 지침.pdf: 연차이월 및 대체휴가 소진
+12. 임직원 연락망_2025.pdf: 부서별 담당자 연락처
+13. 도서구입 및 도서관 운영지침.docx: 도서 신청 및 지식경영
+14. 사내동호회운영규정.pdf: 동호회 창설 및 지원금
+15. 사내 와이파이 정보.pdf: SSID 및 비밀번호 안내
+16. 2023_KCIM_사내도서지원.pptx: 도서 지원 제도 홍보
+17. 경영관리본부 업무분장표.pdf: 담당 직무 및 부서 역할
 """
 
 # --------------------------------------------------------------------------
@@ -68,11 +68,10 @@ COMPANY_DOCUMENTS_INFO = """
 # --------------------------------------------------------------------------
 def get_kst_now():
     """한국 표준시(KST) 반환"""
-    kst = timezone(timedelta(hours=9))
-    return datetime.now(kst)
+    return datetime.now(timezone(timedelta(hours=9)))
 
 def get_dynamic_greeting():
-    """시간대별 맞춤형 인사말 생성"""
+    """시간대별 인사말 생성"""
     now_hour = get_kst_now().hour
     if 5 <= now_hour < 11: return "좋은 아침입니다! 오늘도 활기차게 시작해볼까요? ☀️"
     elif 11 <= now_hour < 14: return "즐거운 점심시간입니다. 맛있는 식사 하셨나요? 🍱"
@@ -80,11 +79,19 @@ def get_dynamic_greeting():
     elif 18 <= now_hour < 22: return "오늘 하루도 고생 많으셨습니다! 마무리하며 도와드릴 일이 있을까요? ✨"
     else: return "늦은 시간까지 수고가 많으시네요. 무엇을 도와드릴까요? 🌙"
 
+# [중요 수정] 요약 대상 텍스트(text)를 AI에게 정확히 전달하도록 개선
 def summarize_text(text):
-    """시트 기록용 요약"""
+    """시트 기록용 핵심 요약 (텍스트 누락 오류 해결)"""
     try:
         client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-        res = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "system", "content": "1문장으로 짧게 요약해."}], temperature=0)
+        res = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "입력받은 문장을 한 줄의 핵심 요약문으로 변환해줘."},
+                {"role": "user", "content": text} # <--- 실제 대화 내용을 전달함
+            ],
+            temperature=0
+        )
         return res.choices[0].message.content.strip()
     except: return text[:30] + "..."
 
@@ -127,7 +134,7 @@ if not st.session_state["logged_in"]:
     with st.form("login_form"):
         st.markdown("<h2 style='text-align: center; color: #1a1c1e;'>🏢 KCIM 임직원 민원 챗봇</h2>", unsafe_allow_html=True)
         input_name = st.text_input("성명", placeholder="이름 입력")
-        input_pw = st.text_input("비밀번호", type="password", placeholder="****")
+        input_pw = st.text_input("비밀번호 (휴대폰 뒷 4자리)", type="password", placeholder="****")
         st.info("💡 민원 데이터 관리를 위해 해당 임직원 신원 확인을 요청드립니다.")
         if st.form_submit_button("접속하기", use_container_width=True):
             if input_name in EMPLOYEE_DB and EMPLOYEE_DB[input_name]["pw"] == input_pw:
@@ -138,40 +145,15 @@ if not st.session_state["logged_in"]:
 else:
     user = st.session_state["user_info"]
     with st.sidebar:
-        # 1. 로고 (가운데 정렬)
+        # 로고 중앙 정렬
         st.markdown("<div style='text-align: center; width: 100%;'><h2 style='color: #1a1c1e; margin-bottom: 20px;'>🏢 KCIM</h2></div>", unsafe_allow_html=True)
         
-        # 2. 사용자 정보 (HR팀 명칭 고정)
+        # 사용자 정보 (HR팀 고정)
         st.markdown(f"<div class='sidebar-user-box'><small>인증된 사용자</small><br><b style='font-size: 20px;'>{user['name']} {user['rank']}</b><br><span style='color: #28a745; font-weight: 600;'>{user['dept']}</span></div>", unsafe_allow_html=True)
         
         st.subheader("🚀 민원 카테고리")
-        # 3. 민원 분류
-        cats = [("🛠️ 시설/수리", "사옥·차량 유지보수, 장비 교체 및 수리 요청"), ("👤 입퇴사/이동", "제증명 발급, 인사 발령, 근무 확인 및 채용"), ("📋 프로세스/규정", "사내 규정 안내, 시스템 이슈 및 보안 문의"), ("🎁 복지/휴가", "경조사, 지원금, 교육 지원 및 동호회 활동"), ("📢 불편사항", "근무 환경 내 불편 및 피해 사항 컴플레인"), ("💬 일반/기타", "단순 질의, 일반 업무 협조 및 기타 문의")]
-        
-        for title, desc in cats:
-            if st.button(f"{title}\n{desc}", key=title, disabled=st.session_state["inquiry_active"]):
-                st.session_state["inquiry_active"] = True
-                st.session_state.messages.append({"role": "assistant", "content": f"[{title}] 주제에 대해 상담을 시작합니다. 무엇을 도와드릴까요?"})
-                st.rerun()
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        if st.session_state["inquiry_active"]:
-            if st.button("✅ 현재 상담 종료하기", use_container_width=True):
-                st.session_state["inquiry_active"] = False
-                st.session_state["messages"] = []
-                st.rerun()
-        
-        # 4. 로그아웃 버튼
-        if st.button("🚪 안전하게 로그아웃", use_container_width=True):
-            st.session_state.clear()
-            st.rerun()
-        
-        # 5. [요청사항] 간격을 소폭 더 확보한 후 베타 안내 문구 배치
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        st.markdown("<p class='beta-notice'>이 챗봇은 현재 베타테스트중입니다.<br>오류가 나도 이해해주세요:)</p>", unsafe_allow_html=True)
+        cats = [("🛠️ 시설/수리", "사옥·차량 유지보수, 장비 교체 및 수리 요청"), ("👤 입퇴사/이동", "제증명 발급, 인사 발령, 근무 확인 및 채용"), ("📋 프로세스/규정", "사내 규정 안내, 시스템 이슈 및 보안 문의"), ("🎁 복지/휴가", 다:)</p>", unsafe_allow_html=True)
 
-    # 6. 메인 인삿말
     if not st.session_state.messages:
         dynamic_greeting = get_dynamic_greeting()
         st.markdown(f"<div class='greeting-container'><p class='greeting-title'>{user['name']} {user['rank']}님, 반갑습니다! 👋</p><p class='greeting-subtitle'>{dynamic_greeting}</p></div>", unsafe_allow_html=True)
@@ -179,14 +161,13 @@ else:
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]): st.write(msg["content"])
 
-    # 7. 채팅 입력 및 답변 생성 (17종 규정 활용)
     if prompt := st.chat_input("문의 내용을 입력하세요"):
         st.session_state["inquiry_active"] = True
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.write(prompt)
         
         sys_msg = f"""너는 1990년 창립된 KCIM의 HR팀 매니저야. {user['name']}님께 정중히 답변해줘.
-        아래 최신 규정 파일 목록을 참고하여 정확히 답변하고, 필요한 경우 파일명을 언급해줘:
+        아래 최신 규정 파일 목록을 참고하여 답변하고, 파일명을 언급해줘:
         {COMPANY_DOCUMENTS_INFO}
         
         [원칙]
@@ -203,6 +184,8 @@ else:
                 category = re.search(r'\[CATEGORY:(.*?)\]', answer).group(1) if "[CATEGORY:" in answer else "일반/기타"
                 clean_ans = answer.replace("[ACTION]", "").replace(f"[CATEGORY:{category}]", "").strip()
                 st.session_state.messages.append({"role": "assistant", "content": clean_ans})
+                
+                # 요약 처리 후 시트 저장 (정상 기록 확인용)
                 save_to_sheet(user['dept'], user['name'], user['rank'], category, summarize_text(prompt), summarize_text(clean_ans), status)
                 st.rerun() 
             except: pass
