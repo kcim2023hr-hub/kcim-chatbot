@@ -7,7 +7,7 @@ import pandas as pd
 import os
 import re
 
-# 1. 페이지 설정: 중앙 정렬 레이아웃 및 타이틀 고정
+# 1. 페이지 설정: 레이아웃 고정
 st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢", layout="centered")
 
 # --- UI 고정 및 여백 최적화 커스텀 CSS ---
@@ -16,11 +16,11 @@ st.markdown("""
     .stApp { background-color: #f4f7f9; }
     .block-container { max-width: 800px !important; padding-top: 5rem !important; }
     
-    /* 로그인 폼 카드 스타일 */
+    /* 로그인/알림 디자인 */
     div[data-testid="stForm"] { background-color: #ffffff; padding: 50px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); border: 1px solid #e1e4e8; text-align: center; }
     div[data-testid="stNotification"] { font-size: 16px; background-color: #f0f7ff; border-radius: 12px; color: #0056b3; padding: 20px; }
     
-    /* 사이드바 디자인 및 로고 중앙 정렬 */
+    /* 사이드바 및 로고 중앙 정렬 */
     section[data-testid="stSidebar"] { background-color: #ffffff !important; border-right: 1px solid #dee2e6; }
     .sidebar-user-box { background-color: #f8f9fa; padding: 20px; border-radius: 15px; border: 1px solid #edf0f2; margin-bottom: 20px; text-align: center; }
     
@@ -29,8 +29,8 @@ st.markdown("""
     div[data-testid="stSidebar"] .stButton > button div[data-testid="stMarkdownContainer"] p { font-size: 13px; color: #666; line-height: 1.5; white-space: pre-line; text-align: left; margin: 0; }
     div[data-testid="stSidebar"] .stButton > button div[data-testid="stMarkdownContainer"] p::first-line { font-size: 16px; font-weight: 700; color: #1a1c1e; }
     
-    /* [수정] 안내 문구 스타일 및 상단 여백 확대 */
-    .beta-notice { font-size: 12px; color: #999; text-align: center; margin-top: 40px; line-height: 1.6; }
+    /* [수정] 안내 문구 상단 여백 대폭 확대 */
+    .beta-notice { font-size: 12px; color: #999; text-align: center; margin-top: 60px !important; line-height: 1.6; }
 
     /* 중앙 플랫 인사말 디자인 */
     .greeting-container { text-align: center; margin-bottom: 45px; padding: 25px 0; }
@@ -44,7 +44,7 @@ st.markdown("""
 # --------------------------------------------------------------------------
 COMPANY_DOCUMENTS_INFO = """
 [KCIM 최신 사내 규정 파일 지식]
-1. 2025년_복지제도.pdf: 연차, Refresh 휴가, 자녀 학자금 등 전반
+1. 2025년_복지제도.pdf: 연차, Refresh 휴가, 자녀 학자금 등 복지 전반
 2. 2025년 달라지는 육아지원제도.pdf: 육아휴직, 단축근무, 모성보호 등
 3. 2025_현장근무지원금_최종.pdf: 식대, 교통비, 원거리 지원금 지침
 4. 사고발생처리 매뉴얼.pdf: 사고 보고 및 산재처리 프로세스
@@ -79,16 +79,17 @@ def get_dynamic_greeting():
     elif 18 <= now_hour < 22: return "오늘 하루도 고생 많으셨습니다! 마무리하며 도와드릴 일이 있을까요? ✨"
     else: return "늦은 시간까지 수고가 많으시네요. 무엇을 도와드릴까요? 🌙"
 
-# [중요 수정] 요약 대상 텍스트(text)를 AI에게 정확히 전달하도록 개선
+# [핵심 수정] 텍스트 요약 시 AI가 훈련 데이터 관련 엉뚱한 말을 하지 않도록 지침 강화
 def summarize_text(text):
-    """시트 기록용 핵심 요약 (텍스트 누락 오류 해결)"""
+    """시트 기록용 핵심 요약 (정상 기록 복구)"""
+    if not text or len(text.strip()) == 0: return "-"
     try:
         client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
         res = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "입력받은 문장을 한 줄의 핵심 요약문으로 변환해줘."},
-                {"role": "user", "content": text} # <--- 실제 대화 내용을 전달함
+                {"role": "system", "content": "너는 전문 요약가야. 사용자가 주는 문장의 핵심만 아주 짧게(10자 내외) 요약해. '훈련되었습니다' 같은 모델 정보는 절대 말하지 마."},
+                {"role": "user", "content": f"다음 문장을 요약해줘: {text}"}
             ],
             temperature=0
         )
@@ -124,7 +125,7 @@ def load_employee_db():
 EMPLOYEE_DB = load_employee_db()
 
 # --------------------------------------------------------------------------
-# [4] UI 실행 및 사이드바 구성
+# [4] UI 실행 및 사이드바 구성 (SyntaxError 해결)
 # --------------------------------------------------------------------------
 if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 if "messages" not in st.session_state: st.session_state["messages"] = []
@@ -148,12 +149,42 @@ else:
         # 로고 중앙 정렬
         st.markdown("<div style='text-align: center; width: 100%;'><h2 style='color: #1a1c1e; margin-bottom: 20px;'>🏢 KCIM</h2></div>", unsafe_allow_html=True)
         
-        # 사용자 정보 (HR팀 고정)
+        # 사용자 정보창 (HR팀 표기)
         st.markdown(f"<div class='sidebar-user-box'><small>인증된 사용자</small><br><b style='font-size: 20px;'>{user['name']} {user['rank']}</b><br><span style='color: #28a745; font-weight: 600;'>{user['dept']}</span></div>", unsafe_allow_html=True)
         
         st.subheader("🚀 민원 카테고리")
-        cats = [("🛠️ 시설/수리", "사옥·차량 유지보수, 장비 교체 및 수리 요청"), ("👤 입퇴사/이동", "제증명 발급, 인사 발령, 근무 확인 및 채용"), ("📋 프로세스/규정", "사내 규정 안내, 시스템 이슈 및 보안 문의"), ("🎁 복지/휴가", 다:)</p>", unsafe_allow_html=True)
+        # [수정 완료] SyntaxError가 발생하지 않도록 튜플 구조와 따옴표를 정확히 정렬
+        cats = [
+            ("🛠️ 시설/수리", "사옥·차량 유지보수, 장비 교체 및 수리 요청"),
+            ("👤 입퇴사/이동", "제증명 발급, 인사 발령, 근무 확인 및 채용"),
+            ("📋 프로세스/규정", "사내 규정 안내, 시스템 이슈 및 보안 문의"),
+            ("🎁 복지/휴가", "경조사, 지원금, 교육 지원 및 동호회 활동"),
+            ("📢 불편사항", "근무 환경 내 불편 및 피해 사항 컴플레인"),
+            ("💬 일반/기타", "단순 질의, 일반 업무 협조 및 기타 문의")
+        ]
+        
+        for title, desc in cats:
+            if st.button(f"{title}\n{desc}", key=title, disabled=st.session_state["inquiry_active"]):
+                st.session_state["inquiry_active"] = True
+                st.session_state.messages.append({"role": "assistant", "content": f"[{title}] 주제에 대해 상담을 시작합니다. 무엇을 도와드릴까요?"})
+                st.rerun()
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        if st.session_state["inquiry_active"]:
+            if st.button("✅ 현재 상담 종료하기", use_container_width=True):
+                st.session_state["inquiry_active"] = False
+                st.session_state["messages"] = []
+                st.rerun()
+        
+        if st.button("🚪 안전하게 로그아웃", use_container_width=True):
+            st.session_state.clear()
+            st.rerun()
+        
+        # [요청사항] 간격 추가 및 안내 문구 배치
+        st.markdown("<p class='beta-notice'> ※이 챗봇은 현재 베타 테스트중입니다.<br>오류가 많아도 이해 바랍니다:)</p>", unsafe_allow_html=True)
 
+    # 중앙 화면 처리
     if not st.session_state.messages:
         dynamic_greeting = get_dynamic_greeting()
         st.markdown(f"<div class='greeting-container'><p class='greeting-title'>{user['name']} {user['rank']}님, 반갑습니다! 👋</p><p class='greeting-subtitle'>{dynamic_greeting}</p></div>", unsafe_allow_html=True)
@@ -167,11 +198,11 @@ else:
         with st.chat_message("user"): st.write(prompt)
         
         sys_msg = f"""너는 1990년 창립된 KCIM의 HR팀 매니저야. {user['name']}님께 정중히 답변해줘.
-        아래 최신 규정 파일 목록을 참고하여 답변하고, 파일명을 언급해줘:
+        아래 최신 규정 파일 목록을 참고하여 답변하고, 근거가 되는 파일명을 언급해줘:
         {COMPANY_DOCUMENTS_INFO}
         
         [원칙]
-        1. 시설 수리 등 실무 확인이 필요한 건은 끝에 반드시 [ACTION]을 붙여줘.
+        1. 시설 수리 등 담당자 확인이 필요한 실무 건은 끝에 반드시 [ACTION]을 붙여줘.
         2. 마지막엔 반드시 [CATEGORY:분류명]을 포함해줘.
         """
         
@@ -185,7 +216,7 @@ else:
                 clean_ans = answer.replace("[ACTION]", "").replace(f"[CATEGORY:{category}]", "").strip()
                 st.session_state.messages.append({"role": "assistant", "content": clean_ans})
                 
-                # 요약 처리 후 시트 저장 (정상 기록 확인용)
+                # 요약 기록 오류 해결 완료 (실제 질문/답변 요약 기록)
                 save_to_sheet(user['dept'], user['name'], user['rank'], category, summarize_text(prompt), summarize_text(clean_ans), status)
                 st.rerun() 
             except: pass
