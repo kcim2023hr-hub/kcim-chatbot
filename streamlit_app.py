@@ -19,7 +19,7 @@ except Exception as e:
     st.stop()
 
 def get_target_project_code():
-    """309개 프로젝트를 페이지를 넘겨가며 모두 뒤져서 진짜 코드를 찾음"""
+    """309개 프로젝트를 페이지별로 뒤져서 '[민원챗봇] 수신전용프로젝트' 코드를 찾음"""
     headers = {"Content-Type": "application/json", "x-flow-api-key": FLOW_API_KEY}
     url = "https://api.flow.team/v1/projects"
     next_cursor = None
@@ -30,11 +30,11 @@ def get_target_project_code():
         res = requests.get(url, headers=headers, params=params)
         if res.status_code == 200:
             data = res.json()
-            # response -> data -> projects -> projects 계층 파고들기
+            # 서버 응답 구조 정밀 추적 (response -> data -> projects -> projects)
             p_data = data.get('response', {}).get('data', {}).get('projects', {})
             p_list = p_data.get('projects', [])
             
-            # 매니저님의 실제 프로젝트 이름으로 검색
+            # 매니저님의 실제 프로젝트 이름으로 검색 (image_78968b 확인 결과)
             for p in p_list:
                 p_name = str(p.get('name'))
                 if "[민원챗봇] 수신전용프로젝트" in p_name:
