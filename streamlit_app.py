@@ -151,7 +151,7 @@ else:
         st.markdown(f"<div class='sidebar-user-box'><small>인증된 사용자</small><br><b style='font-size: 20px;'>{user['name']} {user['rank']}</b><br><span style='color: #28a745; font-weight: 600;'>{user['dept']}</span></div>", unsafe_allow_html=True)
         
         # 관리자 전용 메뉴
-        if user['name'] == "관리자":
+        if user['name'] in ["관리자", "이경한"]:
             st.markdown("---")
             st.subheader("⚙️ 관리자 전용")
             with st.expander("📊 실시간 민원 현황 보기"):
