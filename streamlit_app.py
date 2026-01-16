@@ -10,7 +10,7 @@ import re
 # 1. 페이지 설정
 st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢", layout="centered")
 
-# --- UI 커스텀 CSS ---
+# --- UI 커스텀 CSS (디자인 최적화 유지) ---
 st.markdown("""
     <style>
     .stApp { background-color: #f4f7f9; }
@@ -19,7 +19,7 @@ st.markdown("""
     div[data-testid="stNotification"] { font-size: 16px; background-color: #f0f7ff; border-radius: 12px; color: #0056b3; padding: 20px; }
     section[data-testid="stSidebar"] { background-color: #ffffff !important; border-right: 1px solid #dee2e6; }
     
-    /* 사이드바 버튼 최적화 */
+    /* 사이드바 버튼 스타일 최적화 */
     div[data-testid="stSidebar"] .stButton > button { background-color: #ffffff !important; border: 1px solid #e9ecef !important; padding: 15px 10px !important; border-radius: 12px !important; width: 100% !important; margin-bottom: 2px !important; }
     div[data-testid="stSidebar"] .stButton > button p { font-size: 14px !important; color: #495057 !important; font-weight: 600 !important; }
     
@@ -31,7 +31,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------------
-# [1] 지식 베이스 (텍스트 기반 규정 상세)
+# [1] 지식 베이스 (상세 규정 내용 탑재)
 # --------------------------------------------------------------------------
 COMPANY_DOCUMENTS_INFO = """
 [KCIM HR 규정 및 양식 핵심 가이드]
@@ -84,7 +84,7 @@ RULES_LIST = [
 ]
 
 # --------------------------------------------------------------------------
-# [2] 유틸리티 기능 (요약 기능 강화)
+# [2] 유틸리티 기능 (요약 및 시트 저장)
 # --------------------------------------------------------------------------
 def get_kst_now(): return datetime.now(timezone(timedelta(hours=9)))
 
@@ -95,7 +95,7 @@ def get_dynamic_greeting():
     elif 14 <= hr < 18: return "즐거운 오후입니다. 업무 중에 궁금한 점이 있으신가요? ☕"
     else: return "오늘 하루도 고생 많으셨습니다! ✨"
 
-# [핵심] 텍스트 요약 함수 (시트 저장용)
+# [텍스트 요약 함수]
 def summarize_text(text):
     if not text: return "-"
     try:
@@ -103,16 +103,16 @@ def summarize_text(text):
         res = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "너는 텍스트 요약 전문가야. 사용자의 긴 질문이나 답변을 '명사형 종결 어미'를 사용해 한 줄로 핵심만 요약해줘. (예: 배우자 출산 휴가 일수 문의)"},
+                {"role": "system", "content": "너는 텍스트 요약 전문가야. 내용을 '명사형 종결 어미'를 사용해 한 줄로 핵심만 요약해줘."},
                 {"role": "user", "content": text}
             ],
             temperature=0
         )
         return res.choices[0].message.content.strip()
-    except: return text[:50] + "..." # API 실패 시 앞부분만 자름
+    except: return text[:50] + "..."
 
 def save_to_sheet(dept, name, rank, category, question, answer, status):
-    # 실제 구글 시트 URL
+    # 매니저님 구글 시트 URL
     url = "https://docs.google.com/spreadsheets/d/1jckiUzmefqE_PiaSLVHF2kj2vFOIItc3K86_1HPWr_4/edit#gid=1434430603"
     try:
         creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["google_sheets"]), ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'])
@@ -207,21 +207,31 @@ else:
     if not st.session_state.messages:
         st.markdown(f"<div class='greeting-container'><p class='greeting-title'>{user['name']}님, 반갑습니다! 👋</p><p class='greeting-subtitle'>{get_dynamic_greeting()}</p></div>", unsafe_allow_html=True)
 
-    # 대화 렌더링 및 3단 분기 경로 로직
+    # [핵심 수정] 대화 렌더링 및 파일 다운로드 버그 수정 (바이너리 읽기 적용)
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             st.write(msg["content"])
             if msg["role"] == "assistant":
                 for f_name in RULES_LIST:
                     if f_name in msg["content"]:
+                        # 3단 분기 경로
                         if f_name.startswith("doa_"): path = f"docs/doa/{f_name}"
                         elif f_name.startswith("KCIM"): path = f"docs/forms/{f_name}"
                         else: path = f"docs/{f_name}"
+                        
+                        # [버그 수정] 파일을 메모리에 읽어서 버튼에 전달
                         if os.path.exists(path):
                             with open(path, "rb") as f:
-                                st.download_button(label=f"📂 {f_name} 다운로드", data=f, file_name=f_name, key=f"dl_{f_name}_{msg['content'][:5]}")
+                                file_data = f.read()
+                            st.download_button(
+                                label=f"📂 {f_name} 다운로드", 
+                                data=file_data, 
+                                file_name=f_name, 
+                                mime="application/octet-stream", 
+                                key=f"dl_{f_name}_{msg['content'][:5]}"
+                            )
 
-    # 채팅 입력 및 요약 저장 기능 적용
+    # 채팅 입력 및 답변 생성
     if prompt := st.chat_input("문의 내용을 입력하세요"):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.write(prompt)
@@ -237,7 +247,7 @@ else:
         {COMPANY_DOCUMENTS_INFO}
         """
         
-        with st.spinner("챗봇이 질문을 확인하는 중입니다..."):
+        with st.spinner("HR 담당자가 규정을 확인 중입니다..."):
             try:
                 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
                 res = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "system", "content": sys_msg}] + st.session_state.messages)
@@ -252,13 +262,22 @@ else:
                             if f_name.startswith("doa_"): path = f"docs/doa/{f_name}"
                             elif f_name.startswith("KCIM"): path = f"docs/forms/{f_name}"
                             else: path = f"docs/{f_name}"
+                            
+                            # [버그 수정] 파일을 메모리에 읽어서 버튼에 전달
                             if os.path.exists(path):
                                 with open(path, "rb") as f:
-                                    st.download_button(label=f"📂 {f_name} 다운로드", data=f, file_name=f_name, key=f"new_{f_name}")
+                                    file_data = f.read()
+                                st.download_button(
+                                    label=f"📂 {f_name} 다운로드", 
+                                    data=file_data, 
+                                    file_name=f_name, 
+                                    mime="application/octet-stream", 
+                                    key=f"new_{f_name}"
+                                )
 
                 st.session_state.messages.append({"role": "assistant", "content": clean_ans})
                 
-                # [요약 저장 기능 호출]
+                # 요약 후 시트 저장
                 q_summary = summarize_text(prompt)
                 a_summary = summarize_text(clean_ans)
                 save_to_sheet(user['dept'], user['name'], user['rank'], category, q_summary, a_summary, "처리완료")
