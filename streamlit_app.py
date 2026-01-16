@@ -18,10 +18,12 @@ st.markdown("""
     div[data-testid="stForm"] { background-color: #ffffff; padding: 50px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); border: 1px solid #e1e4e8; text-align: center; }
     div[data-testid="stNotification"] { font-size: 16px; background-color: #f0f7ff; border-radius: 12px; color: #0056b3; padding: 20px; }
     section[data-testid="stSidebar"] { background-color: #ffffff !important; border-right: 1px solid #dee2e6; }
-    .sidebar-user-box { background-color: #f8f9fa; padding: 20px; border-radius: 15px; border: 1px solid #edf0f2; margin-bottom: 20px; text-align: center; }
+    
+    /* 사이드바 버튼 스타일 최적화 */
     div[data-testid="stSidebar"] .stButton > button { background-color: #ffffff !important; border: 1px solid #e9ecef !important; padding: 18px 15px !important; border-radius: 15px !important; width: 100% !important; margin-bottom: -5px !important; }
     div[data-testid="stSidebar"] .stButton > button div[data-testid="stMarkdownContainer"] p { font-size: 13px; color: #666; line-height: 1.5; white-space: pre-line; text-align: left; margin: 0; }
     div[data-testid="stSidebar"] .stButton > button div[data-testid="stMarkdownContainer"] p::first-line { font-size: 16px; font-weight: 700; color: #1a1c1e; }
+    
     .beta-notice { font-size: 12px; color: #999; text-align: center; margin-top: 60px !important; line-height: 1.6; }
     .greeting-container { text-align: center; margin-bottom: 45px; padding: 25px 0; }
     .greeting-title { font-size: 38px !important; font-weight: 800; color: #1a1c1e; margin-bottom: 15px; }
@@ -34,23 +36,25 @@ st.markdown("""
 # --------------------------------------------------------------------------
 COMPANY_DOCUMENTS_INFO = """
 [KCIM HR 규정 및 양식 핵심 가이드]
+※ 챗봇 답변의 근거 자료입니다. 아래 내용을 숙지하고 답변하세요.
 
 1. [휴가 및 복지]
-   - **배우자 출산 휴가**: 법적 기준에 따라 '유급 20일' 부여 (최우선 답변). 필요시 'KCIM_가족돌봄 휴가신청서.xlsx' 사용.
+   - **배우자 출산 휴가**: 법적 기준에 따라 '유급 20일' 부여 (최우선 답변). 필요시 'KCIM_가족돌봄 휴가신청서.xlsx' 사용 안내.
    - **가족돌봄휴가**: 가족(부모,자녀,배우자 등)의 질병/사고/노령으로 돌봄 필요 시 사용. 연간 최장 90일(무급). 양식: 'KCIM_가족돌봄 휴가신청서.xlsx'
-   - **난임치료휴가**: 연간 3일(최초 1일 유급). 양식: 'KCIM_난임치료휴가 신청서.xlsx'
+   - **난임치료휴가**: 연간 3일(최초 1일 유급, 나머지 무급). 양식: 'KCIM_난임치료휴가 신청서.xlsx'
    - **성장포인트**: 자기개발/도서구입 등에 사용 가능. 양식: 'KCIM_성장포인트 적립 및 사용 신청서.xlsx'
    - **자녀 학자금**: 고등학교/대학교 자녀 학비 지원 (상세 기준은 2026년_복지제도.pdf 참조).
 
 2. [근무 및 행정]
-   - **재택근무**: 부서장 승인 필요, 주 1~2회 가능. 규정: '2024_재택근무_운영규정(최종본).pdf'
-   - **법인차량**: 차량 반납/인계 시 'KCIM_법인차량_인수인계서.xlsx' 작성 필수. 파손 시 'KCIM_사고경위서.xlsx' 작성.
+   - **재택근무**: 부서장 승인 필요, 주 1~2회 가능하며 업무 효율성 증빙 필요. 규정: '2024_재택근무_운영규정(최종본).pdf'
+   - **법인차량**: 차량 반납/인계 시 'KCIM_법인차량_인수인계서.xlsx' 작성 필수. 파손 등 사고 시 'KCIM_사고경위서.xlsx' 작성.
    - **명함 신청**: 신규/재발급 필요 시 'KCIM_명함신청양식.xlsx' 작성 후 경영지원팀 제출.
    - **기안서**: 비용 발생이나 대외 공문 발송 전 내부 승인용. 양식: 'KCIM_기안서.xlsx'
 
 3. [프로젝트 및 계약]
    - **BIM 프로젝트 종료**: 프로젝트 완료 시 산출물 및 이슈 정리하여 보고. 양식: 'KCIM_BIM 프로젝트 종료 프로세스 & 결과 보고서.xlsx'
-   - **업무 인수인계**: 부서 이동이나 퇴사 시 필수 작성. 양식: 'KCIM_BIM 프로젝트 업무 인수인계서.xlsx'
+   - **업무 인수인계**: 부서 이동이나 퇴사 시 후임자에게 업무 전달 필수. 양식: 'KCIM_BIM 프로젝트 업무 인수인계서.xlsx'
+   - **계약서**: 도급 계약 시 '도급인기준.docx', 수급 계약 시 '수급인기준.docx' 사용.
 
 4. [인사 명령/이동]
    - **부서 이동**: 본인 희망 혹은 조직 개편 시 작성. 양식: 'KCIM_부서이동요청서.xlsx'
@@ -100,6 +104,7 @@ def summarize_text(text):
     except: return "-"
 
 def save_to_sheet(dept, name, rank, category, question, answer, status):
+    # 실제 사용하시는 구글 시트 URL이 맞는지 꼭 확인해주세요
     url = "https://docs.google.com/spreadsheets/d/1jckiUzmefqE_PiaSLVHF2kj2vFOIItc3K86_1HPWr_4/edit#gid=1434430603"
     try:
         creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["google_sheets"]), ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'])
@@ -144,41 +149,55 @@ if not st.session_state["logged_in"]:
 else:
     user = st.session_state["user_info"]
     with st.sidebar:
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown(f"<div class='sidebar-user-box'><small>인증된 사용자</small><br><b style='font-size: 20px;'>{user['name']} {user['rank']}</b><br><span style='color: #28a745; font-weight: 600;'>{user['dept']}</span></div>", unsafe_allow_html=True)
+        # [1] 사용자 프로필 카드 (디자인 최적화 적용됨)
+        st.markdown(f"""
+        <div style="background-color: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-align: center; margin-bottom: 25px;">
+            <div style="color: #868e96; font-size: 13px; margin-bottom: 5px;">인증된 임직원</div>
+            <div style="color: #212529; font-size: 20px; font-weight: 800;">{user['name']} {user['rank']}</div>
+            <div style="background-color: #e7f5ff; color: #1c7ed6; font-size: 13px; font-weight: 700; display: inline-block; padding: 4px 12px; border-radius: 15px; margin-top: 8px;">{user['dept']}</div>
+        </div>
+        """, unsafe_allow_html=True)
         
-        # --- [수정 완료] 관리자 전용 메뉴: '이경한'님 포함 및 시트 바로가기 버튼 ---
+        # [2] 관리자 전용 메뉴 (이경한님 포함 + 아이콘 박스 링크)
         if user['name'] in ["관리자", "이경한"]:
-            st.markdown("---")
-            st.subheader("⚙️ 관리자 전용")
             sheet_url = "https://docs.google.com/spreadsheets/d/1jckiUzmefqE_PiaSLVHF2kj2vFOIItc3K86_1HPWr_4/edit#gid=1434430603"
             st.markdown(f"""
             <a href="{sheet_url}" target="_blank" style="text-decoration: none;">
-                <div style="background-color: #f1f3f5; padding: 15px; border-radius: 10px; border: 1px solid #e9ecef; text-align: center; transition: 0.3s;">
-                    <span style="font-size: 24px;">📊</span><br>
-                    <span style="font-weight: bold; color: #1a1c1e; font-size: 16px;">민원 시트 열기</span><br>
-                    <span style="font-size: 12px; color: #868e96;">Google Sheets 바로가기</span>
+                <div style="background-color: #f8f9fa; padding: 15px; border-radius: 12px; border: 1px solid #dee2e6; text-align: center; margin-bottom: 25px; transition: 0.3s; cursor: pointer;">
+                    <span style="font-size: 22px;">📊</span><br>
+                    <span style="font-weight: bold; color: #495057; font-size: 15px;">민원 현황 시트</span><br>
+                    <span style="font-size: 11px; color: #adb5bd;">Google Sheets 이동</span>
                 </div>
             </a>
             """, unsafe_allow_html=True)
 
-        st.subheader("🚀 민원 카테고리")
-        cats = [("🛠️ 시설/수리", "사옥·차량 유지보수, 수리 요청"), ("👤 입퇴사/이동", "제증명, 인사 발령, 채용 문의"), ("📋 프로세스/규정", "사내 규정, 시스템 및 보안"), ("🎁 복지/휴가", "경조사, 지원금, 휴가 및 동호회"), ("📢 불편사항", "근무 환경 내 불편 사항"), ("💬 일반/기타", "단순 질의 및 협조")]
+        # [3] 민원 카테고리 (디자인 최적화 적용됨)
+        st.caption("문의하실 주제를 선택하세요")
+        cats = [
+            ("🛠️ 시설/수리", "사옥·차량·장비 유지보수"), 
+            ("👤 입퇴사/이동", "제증명·발령·채용 문의"), 
+            ("📋 규정/보안", "사내규정·시스템 보안"), 
+            ("🎁 복지/휴가", "경조사·지원금·휴가제도"), 
+            ("📢 불편사항", "근무 환경 내 불편 사항"), 
+            ("💬 일반/기타", "단순 질의 및 협조")
+        ]
         
         for title, desc in cats:
-            if st.button(f"{title}\n{desc}", key=title, disabled=st.session_state["inquiry_active"]):
+            if st.button(f"{title}\n{desc}", key=title, disabled=st.session_state["inquiry_active"], use_container_width=True):
                 st.session_state["inquiry_active"] = True
-                st.session_state.messages.append({"role": "assistant", "content": f"[{title}] 주제 상담을 시작합니다."})
+                st.session_state.messages.append({"role": "assistant", "content": f"**[{title.split()[1]}]** 관련 상담을 시작합니다. 무엇을 도와드릴까요?"})
                 st.rerun()
         
-        st.markdown("<br>", unsafe_allow_html=True)
+        # [4] 하단 기능 버튼
+        st.markdown("<div style='margin-top: 40px;'></div>", unsafe_allow_html=True)
         if st.session_state["inquiry_active"]:
-            if st.button("✅ 상담 종료", use_container_width=True):
-                st.session_state["inquiry_active"], st.session_state["messages"] = False, []
+            if st.button("✅ 상담 종료 및 초기화", use_container_width=True, type="primary"):
+                st.session_state["inquiry_active"] = False
+                st.session_state["messages"] = []
                 st.rerun()
-        if st.button("🚪 로그아웃", use_container_width=True):
+        if st.button("🚪 안전하게 로그아웃", use_container_width=True):
             st.session_state.clear(); st.rerun()
-        st.markdown("<p class='beta-notice'>※베타 테스트중입니다.:)</p>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align: center; color: #ced4da; font-size: 11px; margin-top: 20px;'>KCIM HR Chatbot (Beta)</div>", unsafe_allow_html=True)
 
     if not st.session_state.messages:
         st.markdown(f"<div class='greeting-container'><p class='greeting-title'>{user['name']}님, 반갑습니다! 👋</p><p class='greeting-subtitle'>{get_dynamic_greeting()}</p></div>", unsafe_allow_html=True)
