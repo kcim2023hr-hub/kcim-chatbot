@@ -1,0 +1,18 @@
+[사내 와이파이(Wifi) 정보 및 비밀번호]
+
+* 층별 개인 휴대폰, 아이패드용 Wifi SSID 및 암호입니다.
+
+| 층 | SSID (2.4GHz) | SSID (5GHz) | 암호 | 비고 |
+|:---:|:---|:---|:---|:---|
+| 지하 | office_b | office_b_5G | %kcim900801 | |
+| 1층 | freezone | freezone_5G | free#3167 | 2층 회의실 외부인용 |
+| 2층 | office_2 | office_2_5G | %kcim900801 | |
+| 3층 | office_3 | office_3_5G | %kcim900801 | |
+| 4층 | office_4 | office_4_5G | %kcim900801 | |
+| 5층 | office_5 | office_5_5G | %kcim900801 | |
+| 6층 | office_6 | office_6_5G | %kcim900801 | |
+
+[주의사항]
+1. 외부인에게는 'freezone', 'freezone_5G' 이외 절대 노출 금지
+2. 사용 시간은 오전 8시부터 오후 8시까지이며, 토, 일요일은 사용할 수 없습니다.
+3. 참고사항: 자리에 따라 속도 차이가 발생함
