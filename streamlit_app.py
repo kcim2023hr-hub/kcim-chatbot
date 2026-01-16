@@ -237,7 +237,7 @@ else:
         {COMPANY_DOCUMENTS_INFO}
         """
         
-        with st.spinner("HR 담당자가 규정을 확인 중입니다..."):
+        with st.spinner("챗봇이 질문을 확인하는 중입니다..."):
             try:
                 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
                 res = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "system", "content": sys_msg}] + st.session_state.messages)
