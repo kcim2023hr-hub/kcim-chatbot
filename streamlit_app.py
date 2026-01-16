@@ -133,11 +133,8 @@ if not st.session_state["logged_in"]:
 else:
     user = st.session_state["user_info"]
     with st.sidebar:
-        logo_path = "docs/logo.png"
-        if os.path.exists(logo_path):
-            st.image(logo_path, use_container_width=True)
-        else:
-            st.markdown("<br>", unsafe_allow_html=True)
+        # [삭제] 로고 이미지 출력 코드 제거 및 여백 조정
+        st.markdown("<br>", unsafe_allow_html=True)
             
         st.markdown(f"<div class='sidebar-user-box'><small>인증된 사용자</small><br><b style='font-size: 20px;'>{user['name']} {user['rank']}</b><br><span style='color: #28a745; font-weight: 600;'>HR팀</span></div>", unsafe_allow_html=True)
         
@@ -163,8 +160,7 @@ else:
         
         st.markdown("<p class='beta-notice'>※베타 테스트중입니다.<br>오류가 많아도 이해 바랍니다.:)</p>", unsafe_allow_html=True)
 
-    # 메인 페이지 시작: 상단 타이틀 고정
-    st.markdown("<h2 style='text-align: center; color: #1a1c1e; margin-top: -30px; margin-bottom: 30px;'>🏢 KCIM 임직원 민원 챗봇</h2>", unsafe_allow_html=True)
+    # [삭제] 메인 중앙 타이틀 제거
 
     if not st.session_state.messages:
         dynamic_greeting = get_dynamic_greeting()
