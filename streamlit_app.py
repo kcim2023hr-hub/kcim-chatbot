@@ -30,10 +30,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------------
-# [1] 규정 및 양식 파일 지식 베이스
-# --------------------------------------------------------------------------
-# --------------------------------------------------------------------------
-# [1] 규정 및 양식 파일 지식 베이스 (상세 규정 내용 보강)
+# [1] 규정 및 양식 파일 지식 베이스 (상세 내용 탑재 완료)
 # --------------------------------------------------------------------------
 COMPANY_DOCUMENTS_INFO = """
 [KCIM HR 규정 및 양식 핵심 가이드]
@@ -132,7 +129,7 @@ if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 if "messages" not in st.session_state: st.session_state["messages"] = []
 if "inquiry_active" not in st.session_state: st.session_state["inquiry_active"] = False
 
-# [로그인 화면] - 안내 문구 복구
+# [로그인 화면]
 if not st.session_state["logged_in"]:
     with st.form("login_form"):
         st.markdown("<h2 style='text-align: center; color: #1a1c1e;'>🏢 KCIM 임직원 민원 챗봇</h2>", unsafe_allow_html=True)
@@ -150,20 +147,20 @@ else:
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown(f"<div class='sidebar-user-box'><small>인증된 사용자</small><br><b style='font-size: 20px;'>{user['name']} {user['rank']}</b><br><span style='color: #28a745; font-weight: 600;'>{user['dept']}</span></div>", unsafe_allow_html=True)
         
-        # 관리자 전용 메뉴
+        # --- [수정 완료] 관리자 전용 메뉴: '이경한'님 포함 및 시트 바로가기 버튼 ---
         if user['name'] in ["관리자", "이경한"]:
             st.markdown("---")
             st.subheader("⚙️ 관리자 전용")
-            with st.expander("📊 실시간 민원 현황 보기"):
-                try:
-                    creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["google_sheets"]), ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'])
-                    url = "https://docs.google.com/spreadsheets/d/1jckiUzmefqE_PiaSLVHF2kj2vFOIItc3K86_1HPWr_4/edit#gid=1434430603"
-                    sheet = gspread.authorize(creds).open_by_url(url).worksheet("응답시트")
-                    st.dataframe(pd.DataFrame(sheet.get_all_records()).tail(10))
-                except: st.warning("데이터 로드 실패")
-            if os.path.exists('members.xlsx'):
-                with open('members.xlsx', "rb") as f:
-                    st.download_button("📥 인사 DB 다운로드", f, file_name="members_backup.xlsx")
+            sheet_url = "https://docs.google.com/spreadsheets/d/1jckiUzmefqE_PiaSLVHF2kj2vFOIItc3K86_1HPWr_4/edit#gid=1434430603"
+            st.markdown(f"""
+            <a href="{sheet_url}" target="_blank" style="text-decoration: none;">
+                <div style="background-color: #f1f3f5; padding: 15px; border-radius: 10px; border: 1px solid #e9ecef; text-align: center; transition: 0.3s;">
+                    <span style="font-size: 24px;">📊</span><br>
+                    <span style="font-weight: bold; color: #1a1c1e; font-size: 16px;">민원 시트 열기</span><br>
+                    <span style="font-size: 12px; color: #868e96;">Google Sheets 바로가기</span>
+                </div>
+            </a>
+            """, unsafe_allow_html=True)
 
         st.subheader("🚀 민원 카테고리")
         cats = [("🛠️ 시설/수리", "사옥·차량 유지보수, 수리 요청"), ("👤 입퇴사/이동", "제증명, 인사 발령, 채용 문의"), ("📋 프로세스/규정", "사내 규정, 시스템 및 보안"), ("🎁 복지/휴가", "경조사, 지원금, 휴가 및 동호회"), ("📢 불편사항", "근무 환경 내 불편 사항"), ("💬 일반/기타", "단순 질의 및 협조")]
@@ -208,9 +205,9 @@ else:
         sys_msg = f"""너는 1990년 창립된 KCIM의 HR팀 팀장이야. {user['name']}님께 답변해줘.
         [핵심 원칙]
         1. 배우자 출산 휴가는 반드시 **'총 20일(유급)'**로 안내해.
-        2. "파일을 보라"는 말 금지. 규정 내용을 네가 직접 요약해서 문장으로 해답을 말해줘.
+        2. "파일을 보라"는 말 금지. 아래 '규정 및 양식 가이드' 내용을 바탕으로 네가 직접 문장으로 해답을 설명해.
         3. 외부 정보는 최신 근로기준법을 참고하고 출처를 밝혀줘.
-        4. 관련 양식(KCIM_...) 파일명을 답변에 포함해.
+        4. 답변에 관련된 파일명(KCIM_... 등)을 포함시켜 다운로드 버튼이 뜨게 해.
         5. 마지막에 [CATEGORY:분류명] 필수.
         
         {COMPANY_DOCUMENTS_INFO}
