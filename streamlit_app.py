@@ -156,6 +156,27 @@ else:
     with st.sidebar:
         st.markdown("<div style='text-align: center; width: 100%;'><h2 style='color: #1a1c1e; margin-bottom: 20px;'>🏢 KCIM</h2></div>", unsafe_allow_html=True)
         st.markdown(f"<div class='sidebar-user-box'><small>인증된 사용자</small><br><b style='font-size: 20px;'>{user['name']} {user['rank']}</b><br><span style='color: #28a745; font-weight: 600;'>HR팀</span></div>", unsafe_allow_html=True)
+            
+            # --- 관리자 전용 메뉴 (이름이 '관리자'일 때만 노출) ---
+        if user['name'] == "관리자":
+            st.markdown("---")
+            st.subheader("⚙️ 관리자 전용")
+            
+            # 1. 실시간 시트 확인 (익스팬더로 깔끔하게 처리)
+            with st.expander("📊 실시간 민원 현황 보기"):
+                try:
+                    # 구글 시트 데이터를 가져와서 표로 보여줌
+                    creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["google_sheets"]), ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'])
+                    sheet = gspread.authorize(creds).open_by_url("매니저님의시트URL").worksheet("응답시트")
+                    df = pd.DataFrame(sheet.get_all_records())
+                    st.dataframe(df.tail(10)) # 최근 10건만 표시
+                except:
+                    st.warning("시트 데이터를 불러올 수 없습니다.")
+            
+            # 2. 인사 DB 다운로드
+            if os.path.exists('members.xlsx'):
+                with open('members.xlsx', "rb") as f:
+                    st.download_button("📥 인사 DB(members.xlsx) 다운로드", f, file_name="members_backup.xlsx")
         
         st.subheader("🚀 민원 카테고리")
         cats = [("🛠️ 시설/수리", "사옥·차량 유지보수, 장비 교체 및 수리 요청"), ("👤 입퇴사/이동", "제증명 발급, 인사 발령, 근무 확인 및 채용"), ("📋 프로세스/규정", "사내 규정 안내, 시스템 이슈 및 보안 문의"), ("🎁 복지/휴가", "경조사, 지원금, 교육 지원 및 동호회 활동"), ("📢 불편사항", "근무 환경 내 불편 및 피해 사항 컴플레인"), ("💬 일반/기타", "단순 질의, 일반 업무 협조 및 기타 문의")]
