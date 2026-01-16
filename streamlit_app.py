@@ -10,7 +10,7 @@ import re
 # 1. 페이지 설정: 중앙 정렬 레이아웃 및 타이틀 고정
 st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢", layout="centered")
 
-# --- UI 고정 및 여백 최적화 커스텀 CSS (디자인 유지) ---
+# --- UI 고정 및 여백 최적화 커스텀 CSS ---
 st.markdown("""
     <style>
     .stApp { background-color: #f4f7f9; }
@@ -40,7 +40,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------------
-# [1] 규정 파일 지식 베이스 및 다운로드 매핑 (최신 리스트 반영)
+# [1] 규정 파일 지식 베이스
 # --------------------------------------------------------------------------
 COMPANY_DOCUMENTS_INFO = """
 [KCIM 최신 사내 규정 파일 지식]
@@ -81,7 +81,7 @@ def summarize_text(text):
         client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
         res = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[{"role": "system", "content": "핵심 한 줄 요약 전문가."}, {"role": "user", "content": text}],
+            messages=[{"role": "system", "content": "핵심 요약 전문가."}, {"role": "user", "content": text}],
             temperature=0
         )
         return res.choices[0].message.content.strip()
@@ -133,7 +133,6 @@ if not st.session_state["logged_in"]:
 else:
     user = st.session_state["user_info"]
     with st.sidebar:
-        # [수정] 사이드바 로고 이미지 (경로: docs/logo.png)
         logo_path = "docs/logo.png"
         if os.path.exists(logo_path):
             st.image(logo_path, use_container_width=True)
@@ -158,16 +157,20 @@ else:
                 st.session_state["messages"] = []
                 st.rerun()
         
-        if st.button("🚪 안전하게 로그아웃", use_container_width=True):
+        if st.button("🚪 로그아웃", use_container_width=True):
             st.session_state.clear()
             st.rerun()
         
         st.markdown("<p class='beta-notice'>※베타 테스트중입니다.<br>오류가 많아도 이해 바랍니다.:)</p>", unsafe_allow_html=True)
 
-    if not st.session_state.messages:
-        st.markdown(f"<div class='greeting-container'><p class='greeting-title'>{user['name']} {user['rank']}님, 반갑습니다! 👋</p><p class='greeting-subtitle'>{get_dynamic_greeting()}</p></div>", unsafe_allow_html=True)
+    # 메인 페이지 시작: 상단 타이틀 고정
+    st.markdown("<h2 style='text-align: center; color: #1a1c1e; margin-top: -30px; margin-bottom: 30px;'>🏢 KCIM 임직원 민원 챗봇</h2>", unsafe_allow_html=True)
 
-    # [수정] 대화 기록 렌더링 (docs/doa 폴더 트리 경로 반영)
+    if not st.session_state.messages:
+        dynamic_greeting = get_dynamic_greeting()
+        st.markdown(f"<div class='greeting-container'><p class='greeting-title'>{user['name']} {user['rank']}님, 반갑습니다! 👋</p><p class='greeting-subtitle'>{dynamic_greeting}</p></div>", unsafe_allow_html=True)
+
+    # 대화 기록 및 파일 다운로드
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             st.write(msg["content"])
@@ -179,13 +182,13 @@ else:
                             with open(f_path, "rb") as f:
                                 st.download_button(label=f"📂 {f_name} 다운로드", data=f, file_name=f_name, key=f"dl_{f_name}_{msg['content'][:10]}")
 
-    # 채팅 입력 및 답변 생성
+    # 채팅 입력
     if prompt := st.chat_input("문의 내용을 입력하세요"):
         st.session_state["inquiry_active"] = True
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.write(prompt)
         
-        sys_msg = f"""너는 1990년 창립된 KCIM의 HR팀 팀장입니다. {user['name']}님께 정중하게 답변해줘.
+        sys_msg = f"""너는 1990년 창립된 KCIM의 HR팀 팀장이야. {user['name']}님께 정중하게 답변해줘.
         아래 최신 규정 파일 목록 중 관련 있는 파일명을 정확히 언급하며 답변해줘:
         {COMPANY_DOCUMENTS_INFO}
         마지막엔 반드시 [CATEGORY:분류명]을 포함해줘.
@@ -203,7 +206,6 @@ else:
                     st.write(clean_ans)
                     for f_name in RULES_LIST:
                         if f_name in clean_ans:
-                            # [수정] 답변 생성 시에도 폴더 트리 경로 자동 매칭
                             f_path = f"docs/doa/{f_name}" if f_name.startswith("doa_") else f"docs/{f_name}"
                             if os.path.exists(f_path):
                                 with open(f_path, "rb") as f:
@@ -213,4 +215,4 @@ else:
                 save_to_sheet(user['dept'], user['name'], user['rank'], category, summarize_text(prompt), summarize_text(clean_ans), "처리완료")
                 st.rerun() 
             except Exception as e:
-                st.error(f"오류가 발생했습니다: {e}")
+                st.error(f"오류: {e}")
