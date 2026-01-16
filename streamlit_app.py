@@ -138,12 +138,25 @@ if not st.session_state["logged_in"]:
                 st.session_state["user_info"] = {**EMPLOYEE_DB[input_name], "name": input_name}
                 st.rerun()
             else: st.error("정보가 일치하지 않습니다.")
+                
+# [교체 코드] 텍스트 제거 및 로고 이미지 삽입 버전
 else:
     user = st.session_state["user_info"]
     with st.sidebar:
-        st.markdown("<div style='text-align: center; width: 100%;'><h2 style='color: #1a1c1e; margin-bottom: 20px;'>🏢 KCIM</h2></div>", unsafe_allow_html=True)
+        # 1. 상단 텍스트 제거 및 로고 이미지 삽입 (중앙 정렬)
+        # 'logo.png' 부분을 실제 파일명으로 바꿔주세요. 예: docs/logo.png
+        logo_path = "logo.png" 
+        
+        if os.path.exists(logo_path):
+            st.image(logo_path, use_container_width=True)
+        else:
+            # 이미지가 없을 경우를 대비한 최소한의 여백 (텍스트 없이 공백만)
+            st.markdown("<br>", unsafe_allow_html=True)
+        
+        # 2. 사용자 정보 (기존 스타일 유지)
         st.markdown(f"<div class='sidebar-user-box'><small>인증된 사용자</small><br><b style='font-size: 20px;'>{user['name']} {user['rank']}</b><br><span style='color: #28a745; font-weight: 600;'>HR팀</span></div>", unsafe_allow_html=True)
         
+        # ... 이하 카테고리 버튼 로직은 그대로 유지 ...
         st.subheader("🚀 민원 카테고리")
         cats = [("🛠️ 시설/수리", "사옥·차량 유지보수, 장비 교체 및 수리 요청"), ("👤 입퇴사/이동", "제증명 발급, 인사 발령, 근무 확인 및 채용"), ("📋 프로세스/규정", "사내 규정 안내, 시스템 이슈 및 보안 문의"), ("🎁 복지/휴가", "경조사, 지원금, 교육 지원 및 동호회 활동"), ("📢 불편사항", "근무 환경 내 불편 및 피해 사항 컴플레인"), ("💬 일반/기타", "단순 질의, 일반 업무 협조 및 기타 문의")]
         
