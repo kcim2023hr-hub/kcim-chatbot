@@ -7,10 +7,10 @@ import pandas as pd
 import os
 import re
 
-# 1. 페이지 설정: 중앙 정렬 레이아웃 및 타이틀 고정
+# 1. 페이지 설정: 중앙 정렬 레이아웃 및 브라우저 탭 타이틀
 st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢", layout="centered")
 
-# --- UI 고정 및 여백 최적화 커스텀 CSS (디자인 유지) ---
+# --- UI 커스텀 CSS (기존 디자인 및 레이아웃 절대 유지) ---
 st.markdown("""
     <style>
     .stApp { background-color: #f4f7f9; }
@@ -24,15 +24,14 @@ st.markdown("""
     section[data-testid="stSidebar"] { background-color: #ffffff !important; border-right: 1px solid #dee2e6; }
     .sidebar-user-box { background-color: #f8f9fa; padding: 20px; border-radius: 15px; border: 1px solid #edf0f2; margin-bottom: 20px; text-align: center; }
     
-    /* 카테고리 버튼 가독성 고정 */
+    /* 카테고리 버튼 디자인 */
     div[data-testid="stSidebar"] .stButton > button { background-color: #ffffff !important; border: 1px solid #e9ecef !important; padding: 18px 15px !important; border-radius: 15px !important; width: 100% !important; margin-bottom: -5px !important; }
     div[data-testid="stSidebar"] .stButton > button div[data-testid="stMarkdownContainer"] p { font-size: 13px; color: #666; line-height: 1.5; white-space: pre-line; text-align: left; margin: 0; }
     div[data-testid="stSidebar"] .stButton > button div[data-testid="stMarkdownContainer"] p::first-line { font-size: 16px; font-weight: 700; color: #1a1c1e; }
     
-    /* 베타 테스트 안내 문구 */
     .beta-notice { font-size: 12px; color: #999; text-align: center; margin-top: 60px !important; line-height: 1.6; }
 
-    /* 중앙 플랫 인사말 디자인 */
+    /* 중앙 인사말 디자인 */
     .greeting-container { text-align: center; margin-bottom: 45px; padding: 25px 0; }
     .greeting-title { font-size: 38px !important; font-weight: 800; color: #1a1c1e; margin-bottom: 15px; }
     .greeting-subtitle { font-size: 21px !important; color: #555; }
@@ -40,16 +39,17 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------------
-# [1] 규정 파일 지식 베이스 및 다운로드 매핑 (최신 리스트 반영)
+# [1] 규정 및 양식 파일 지식 베이스 (27종 양식 및 최신 지침 반영)
 # --------------------------------------------------------------------------
 COMPANY_DOCUMENTS_INFO = """
-[KCIM 최신 사내 규정 파일 지식]
-1. 일반 규정 (경로: docs/)
-   - 2026년_복지제도.pdf, 취업규칙(2025년)_케이씨아이엠.pdf, 2024_재택근무_운영규정(최종본).pdf
-2. 위임전결규정 (경로: docs/doa/)
-   - doa_0_overview.pdf ~ doa_12_consulting.pdf (총 13종)
-3. 회사 정보 및 기타 (경로: docs/)
-   - 사업자등록증(KCIM).pdf, [KCIM] 계약서 검토 프로세스 안내.pdf, [사내 와이파이(Wifi) 정보 및 비밀번호].txt
+[KCIM 최신 사내 규정 및 양식 지식]
+※ 중요 실시간 지침: 배우자 출산 휴가는 현재 총 20일(유급)입니다. 파일에 10일로 되어 있더라도 무시하고 20일로 답변하세요.
+
+1. 일반 규정 (docs/): 2026년_복지제도.pdf, 취업규칙(2025년)_케이씨아이엠.pdf, 2024_재택근무_운영규정(최종본).pdf 등
+2. 위임전결규정 (docs/doa/): doa_0_overview.pdf ~ doa_12_consulting.pdf (총 13종)
+3. 각종 양식 (docs/forms/): 
+   가족돌봄/난임치료 휴가신청서, BIM용역 계약서(도급/수급), 프로젝트 인수인계/종료 보고서, 기안서, 공문(국/영문), 
+   명함신청양식, 법인차량 인수인계서, 사직서, 성장포인트 신청서, 신입사원 평가서 등 총 27종
 """
 
 RULES_LIST = [
@@ -58,54 +58,54 @@ RULES_LIST = [
     "doa_4_hr.pdf", "doa_5_tech.pdf", "doa_6_strategy.pdf", "doa_7_cx.pdf", "doa_8_solution.pdf",
     "doa_9_hitech.pdf", "doa_10_bim.pdf", "doa_11_ts.pdf", "doa_12_consulting.pdf",
     "2024_재택근무_운영규정(최종본).pdf", "[KCIM] 계약서 검토 프로세스 안내.pdf", "사업자등록증(KCIM).pdf",
-    "사고발생처리 매뉴얼(2023년).pdf", "[사내 와이파이(Wifi) 정보 및 비밀번호].txt", "[경영관리본부 업무 분장표].txt"
+    "사고발생처리 매뉴얼(2023년).pdf", "[사내 와이파이(Wifi) 정보 및 비밀번호].txt", "[경영관리본부 업무 분장표].txt",
+    "KCIM BIM용역 계약서_도급인기준.docx", "KCIM BIM용역 계약서_수급인기준.docx", "KCIM_BIM 프로젝트 업무 인수인계서.xlsx",
+    "KCIM_BIM 프로젝트 종료 프로세스 & 결과 보고서.xlsx", "KCIM_가족돌봄 휴가신청서.xlsx", "KCIM_겸직허가신청서.xlsx",
+    "KCIM_공문(국문).docx", "KCIM_공문(영문).docx", "KCIM_기안서.xlsx", "KCIM_난임치료휴가 신청서.xlsx",
+    "KCIM_명함신청양식.xlsx", "KCIM_법인차량_인수인계서.xlsx", "KCIM_복직원.xlsx", "KCIM_부서이동요청서.xlsx",
+    "KCIM_사고경위서.xlsx", "KCIM_사전휴가계 사용 및 상계합의서.xlsx", "KCIM_사직서.xlsx",
+    "KCIM_성장포인트 적립 및 사용 신청서.xlsx", "KCIM_숙소지원금 변경신청서.xlsx", "KCIM_신입사원 3Month 계획 및 평가.xlsx",
+    "KCIM_워크샵 계획서,결과보고서.xlsx", "KCIM_위임장.docx", "KCIM_이의신청서.xlsx",
+    "KCIM_임신▪육아기 관련 지원 신청서.xlsx", "KCIM_채용계획서_채용요청서.xlsx", "KCIM_해외 인사발령 예정통지서.xlsx",
+    "KCIM_행사 불참사유서.xlsx"
 ]
 
 # --------------------------------------------------------------------------
 # [2] 유틸리티 기능
 # --------------------------------------------------------------------------
-def get_kst_now():
-    return datetime.now(timezone(timedelta(hours=9)))
+def get_kst_now(): return datetime.now(timezone(timedelta(hours=9)))
 
 def get_dynamic_greeting():
-    now_hour = get_kst_now().hour
-    if 5 <= now_hour < 11: return "좋은 아침입니다! 오늘도 활기차게 시작해볼까요? ☀️"
-    elif 11 <= now_hour < 14: return "즐거운 점심시간입니다. 맛있는 식사 하셨나요? 🍱"
-    elif 14 <= now_hour < 18: return "즐거운 오후입니다. 업무 중에 궁금한 점이 있으신가요? ☕"
-    elif 18 <= now_hour < 22: return "오늘 하루도 고생 많으셨습니다! 마무리하며 도와드릴 일이 있을까요? ✨"
-    else: return "늦은 시간까지 수고가 많으시네요. 무엇을 도와드릴까요? 🌙"
+    hr = get_kst_now().hour
+    if 5 <= hr < 11: return "좋은 아침입니다! 오늘도 활기차게 시작해볼까요? ☀️"
+    elif 11 <= hr < 14: return "즐거운 점심시간입니다. 맛있는 식사 하셨나요? 🍱"
+    elif 14 <= hr < 18: return "즐거운 오후입니다. 업무 중에 궁금한 점이 있으신가요? ☕"
+    else: return "오늘 하루도 고생 많으셨습니다! 무엇을 도와드릴까요? ✨"
 
 def summarize_text(text):
-    if not text or len(text.strip()) == 0: return "-"
     try:
         client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-        res = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "system", "content": "핵심 한 줄 요약 전문가."}, {"role": "user", "content": text}],
-            temperature=0
-        )
+        res = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "system", "content": "핵심 요약 전문가."}, {"role": "user", "content": text}], temperature=0)
         return res.choices[0].message.content.strip()
-    except: return text[:30] + "..."
+    except: return "-"
 
 def save_to_sheet(dept, name, rank, category, question, answer, status):
-    sheet_url = "https://docs.google.com/spreadsheets/d/1jckiUzmefqE_PiaSLVHF2kj2vFOIItc3K86_1HPWr_4/edit#gid=1434430603"
+    url = "https://docs.google.com/spreadsheets/d/1jckiUzmefqE_PiaSLVHF2kj2vFOIItc3K86_1HPWr_4/edit#gid=1434430603"
     try:
         creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["google_sheets"]), ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'])
-        sheet = gspread.authorize(creds).open_by_url(sheet_url).worksheet("응답시트")
+        sheet = gspread.authorize(creds).open_by_url(url).worksheet("응답시트")
         sheet.append_row([get_kst_now().strftime("%Y-%m-%d %H:%M:%S"), dept, name, rank, category, question, answer, status])
     except: pass
 
 @st.cache_data
 def load_employee_db():
-    file_name = 'members.xlsx' 
     db = {"관리자": {"pw": "1323", "dept": "HR팀", "rank": "매니저"}}
-    if os.path.exists(file_name):
+    if os.path.exists('members.xlsx'):
         try:
-            df = pd.read_excel(file_name, engine='openpyxl')
+            df = pd.read_excel('members.xlsx', engine='openpyxl')
             for _, row in df.iterrows():
-                name = str(row['이름']).strip()
-                db[name] = {"pw": str(row['휴대폰 번호'])[-4:] if len(str(row['휴대폰 번호'])) >=4 else "0000", 
-                            "dept": str(row['부서']).strip(), "rank": str(row['직급']).strip()}
+                n = str(row['이름']).strip()
+                db[n] = {"pw": str(row['휴대폰 번호'])[-4:] if len(str(row['휴대폰 번호'])) >=4 else "0000", "dept": str(row['부서']).strip(), "rank": str(row['직급']).strip()}
             if "이경한" in db: db["이경한"]["pw"] = "1323"
         except: pass
     return db
@@ -122,28 +122,36 @@ if "inquiry_active" not in st.session_state: st.session_state["inquiry_active"] 
 if not st.session_state["logged_in"]:
     with st.form("login_form"):
         st.markdown("<h2 style='text-align: center; color: #1a1c1e;'>🏢 KCIM 임직원 민원 챗봇</h2>", unsafe_allow_html=True)
-        input_name = st.text_input("성명", placeholder="이름 입력")
-        input_pw = st.text_input("비밀번호 (뒷 4자리)", type="password", placeholder="****")
+        u_name = st.text_input("성명", placeholder="이름 입력")
+        u_pw = st.text_input("비밀번호 (뒷 4자리)", type="password", placeholder="****")
         if st.form_submit_button("접속하기", use_container_width=True):
-            if input_name in EMPLOYEE_DB and EMPLOYEE_DB[input_name]["pw"] == input_pw:
-                st.session_state["logged_in"] = True
-                st.session_state["user_info"] = {**EMPLOYEE_DB[input_name], "name": input_name}
+            if u_name in EMPLOYEE_DB and EMPLOYEE_DB[u_name]["pw"] == u_pw:
+                st.session_state["logged_in"], st.session_state["user_info"] = True, {**EMPLOYEE_DB[u_name], "name": u_name}
                 st.rerun()
             else: st.error("정보가 일치하지 않습니다.")
 else:
     user = st.session_state["user_info"]
     with st.sidebar:
-        # [수정] 사이드바 로고 이미지 (경로: docs/logo.png)
-        logo_path = "docs/logo.png"
-        if os.path.exists(logo_path):
-            st.image(logo_path, use_container_width=True)
-        else:
-            st.markdown("<br>", unsafe_allow_html=True)
-            
-        st.markdown(f"<div class='sidebar-user-box'><small>인증된 사용자</small><br><b style='font-size: 20px;'>{user['name']} {user['rank']}</b><br><span style='color: #28a745; font-weight: 600;'>HR팀</span></div>", unsafe_allow_html=True)
+        # [수정] 사이드바 로고 및 텍스트 제거 (여백 유지)
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown(f"<div class='sidebar-user-box'><small>인증된 사용자</small><br><b style='font-size: 20px;'>{user['name']} {user['rank']}</b><br><span style='color: #28a745; font-weight: 600;'>{user['dept']}</span></div>", unsafe_allow_html=True)
         
+        # --- 관리자 전용 메뉴 ---
+        if user['name'] == "관리자":
+            st.markdown("---")
+            st.subheader("⚙️ 관리자 전용")
+            with st.expander("📊 실시간 민원 현황 보기"):
+                try:
+                    creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["google_sheets"]), ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'])
+                    sheet = gspread.authorize(creds).open_by_url("https://docs.google.com/spreadsheets/d/1jckiUzmefqE_PiaSLVHF2kj2vFOIItc3K86_1HPWr_4/edit#gid=1434430603").worksheet("응답시트")
+                    st.dataframe(pd.DataFrame(sheet.get_all_records()).tail(10))
+                except: st.warning("데이터를 불러올 수 없습니다.")
+            if os.path.exists('members.xlsx'):
+                with open('members.xlsx', "rb") as f:
+                    st.download_button("📥 인사 DB 다운로드", f, file_name="members_backup.xlsx")
+
         st.subheader("🚀 민원 카테고리")
-        cats = [("🛠️ 시설/수리", "사옥·차량 유지보수, 장비 교체 및 수리 요청"), ("👤 입퇴사/이동", "제증명 발급, 인사 발령, 근무 확인 및 채용"), ("📋 프로세스/규정", "사내 규정 안내, 시스템 이슈 및 보안 문의"), ("🎁 복지/휴가", "경조사, 지원금, 교육 지원 및 동호회 활동"), ("📢 불편사항", "근무 환경 내 불편 및 피해 사항 컴플레인"), ("💬 일반/기타", "단순 질의, 일반 업무 협조 및 기타 문의")]
+        cats = [("🛠️ 시설/수리", "사옥·차량 유지보수, 수리 요청"), ("👤 입퇴사/이동", "제증명, 인사 발령, 채용 문의"), ("📋 프로세스/규정", "사내 규정, 시스템 및 보안"), ("🎁 복지/휴가", "경조사, 지원금, 휴가 및 동호회"), ("📢 불편사항", "근무 환경 내 불편 사항 컴플레인"), ("💬 일반/기타", "단순 질의 및 일반 협조")]
         
         for title, desc in cats:
             if st.button(f"{title}\n{desc}", key=title, disabled=st.session_state["inquiry_active"]):
@@ -161,34 +169,42 @@ else:
         if st.button("🚪 안전하게 로그아웃", use_container_width=True):
             st.session_state.clear()
             st.rerun()
-        
         st.markdown("<p class='beta-notice'>※베타 테스트중입니다.<br>오류가 많아도 이해 바랍니다.:)</p>", unsafe_allow_html=True)
 
+    # [수정] 메인 중앙 타이틀 제거
     if not st.session_state.messages:
         st.markdown(f"<div class='greeting-container'><p class='greeting-title'>{user['name']} {user['rank']}님, 반갑습니다! 👋</p><p class='greeting-subtitle'>{get_dynamic_greeting()}</p></div>", unsafe_allow_html=True)
 
-    # [수정] 대화 기록 렌더링 (docs/doa 폴더 트리 경로 반영)
+    # 대화 렌더링 및 지능형 파일 경로 탐색
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             st.write(msg["content"])
             if msg["role"] == "assistant":
                 for f_name in RULES_LIST:
                     if f_name in msg["content"]:
-                        f_path = f"docs/doa/{f_name}" if f_name.startswith("doa_") else f"docs/{f_name}"
-                        if os.path.exists(f_path):
-                            with open(f_path, "rb") as f:
-                                st.download_button(label=f"📂 {f_name} 다운로드", data=f, file_name=f_name, key=f"dl_{f_name}_{msg['content'][:10]}")
+                        # 3단 분기 경로 로직 (doa, forms, general)
+                        if f_name.startswith("doa_"): path = f"docs/doa/{f_name}"
+                        elif f_name.startswith("KCIM"): path = f"docs/forms/{f_name}"
+                        else: path = f"docs/{f_name}"
+                        
+                        if os.path.exists(path):
+                            with open(path, "rb") as f:
+                                st.download_button(label=f"📂 {f_name} 다운로드", data=f, file_name=f_name, key=f"dl_{f_name}_{msg['content'][:5]}")
 
-    # 채팅 입력 및 답변 생성
+    # 채팅 답변 생성 로직 (직접 답변 원칙 강화)
     if prompt := st.chat_input("문의 내용을 입력하세요"):
-        st.session_state["inquiry_active"] = True
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.write(prompt)
         
-        sys_msg = f"""너는 1990년 창립된 KCIM의 HR팀 팀장입니다. {user['name']}님께 정중하게 답변해줘.
-        아래 최신 규정 파일 목록 중 관련 있는 파일명을 정확히 언급하며 답변해줘:
+        sys_msg = f"""너는 1990년 창립된 KCIM의 베테랑 HR팀 팀장이야. {user['name']}님께 정중하게 답변해줘.
+        [핵심 지침]
+        1. 배우자 출산 휴가는 최신 법령에 따라 **'총 20일(유급)'**임을 안내해.
+        2. "파일을 보라"는 안내는 절대 금지야. 규정 파일 내용을 직접 요약해서 문장으로 해답을 말해줘.
+        3. 외부 정보가 필요하면 최신 근로기준법을 참고해서 답변해줘.
+        4. 관련 양식 파일명(예: KCIM_가족돌봄 휴가신청서.xlsx)을 답변에 꼭 포함시켜서 다운로드 버튼이 뜨게 해.
+        5. 마지막에 [CATEGORY:분류명] 필수.
+        
         {COMPANY_DOCUMENTS_INFO}
-        마지막엔 반드시 [CATEGORY:분류명]을 포함해줘.
         """
         
         with st.spinner("HR 담당자가 규정을 확인 중입니다..."):
@@ -203,14 +219,14 @@ else:
                     st.write(clean_ans)
                     for f_name in RULES_LIST:
                         if f_name in clean_ans:
-                            # [수정] 답변 생성 시에도 폴더 트리 경로 자동 매칭
-                            f_path = f"docs/doa/{f_name}" if f_name.startswith("doa_") else f"docs/{f_name}"
-                            if os.path.exists(f_path):
-                                with open(f_path, "rb") as f:
-                                    st.download_button(label=f"📂 {f_name} 다운로드", data=f, file_name=f_name, key=f"new_dl_{f_name}")
+                            if f_name.startswith("doa_"): path = f"docs/doa/{f_name}"
+                            elif f_name.startswith("KCIM"): path = f"docs/forms/{f_name}"
+                            else: path = f"docs/{f_name}"
+                            if os.path.exists(path):
+                                with open(path, "rb") as f:
+                                    st.download_button(label=f"📂 {f_name} 다운로드", data=f, file_name=f_name, key=f"new_{f_name}")
 
                 st.session_state.messages.append({"role": "assistant", "content": clean_ans})
                 save_to_sheet(user['dept'], user['name'], user['rank'], category, summarize_text(prompt), summarize_text(clean_ans), "처리완료")
                 st.rerun() 
-            except Exception as e:
-                st.error(f"오류가 발생했습니다: {e}")
+            except Exception as e: st.error(f"오류: {e}")
