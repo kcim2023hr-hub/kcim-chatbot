@@ -195,7 +195,7 @@ else:
         2. 마지막엔 반드시 [CATEGORY:분류명]을 포함해줘.
         """
         
-        with st.spinner("HR 담당자가 규정을 확인 중입니다..."):
+        with st.spinner("HR 챗봇이 내용을 확인 중입니다..."):
             try:
                 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
                 res = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "system", "content": sys_msg}] + st.session_state.messages)
