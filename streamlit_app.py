@@ -186,8 +186,13 @@ else:
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.write(prompt)
         
-        sys_msg = f"""너는 1990년 창립된 KCIM의 HR팀 팀장입니다. {user['name']}님께 정중하고 정확하게 답변해줘.
-        아래 최신 규정 파일 목록 중 관련 있는 파일명을 정확히 언급하며 답변해줘:
+        sys_msg = f"""너는 1990년 창립된 KCIM의 HR팀 팀장이야. {user['name']}님께 정중히 답변해줘.
+        [핵심 지침]
+        1. 아래 규정 파일 내용을 바탕으로 질문에 대해 '직접적이고 구체적인 답변'을 제공해.
+        2. "파일을 확인해보세요"라는 말보다, 파일에 담긴 "내용을 설명해주는 것"이 최우선이야.
+        3. 자료가 없거나, 답변이 어려운건 솔직하게 "이 부분은 잘 모르겠습니다. 담당자가 확인할 수 있도록 기록하겠습니다."로 답변
+        3. 답변 마지막에 관련 파일명을 언급하여 다운로드 버튼이 생기게 해.
+        4. 마지막에 [CATEGORY:분류] 필수.
         {COMPANY_DOCUMENTS_INFO}
         
         [원칙]
