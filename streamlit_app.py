@@ -7,19 +7,27 @@ import pandas as pd
 import os
 import re
 
-# 1. 페이지 설정
+# --------------------------------------------------------------------------
+# [1] 페이지 기본 설정
+# --------------------------------------------------------------------------
 st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢", layout="centered")
 
-# --- UI 커스텀 CSS (디자인 최적화 유지) ---
+# --------------------------------------------------------------------------
+# [2] UI 커스텀 CSS (디자인 최적화 적용)
+# --------------------------------------------------------------------------
 st.markdown("""
     <style>
     .stApp { background-color: #f4f7f9; }
     .block-container { max-width: 800px !important; padding-top: 5rem !important; }
+    
+    /* 로그인 폼 스타일 */
     div[data-testid="stForm"] { background-color: #ffffff; padding: 50px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); border: 1px solid #e1e4e8; text-align: center; }
     div[data-testid="stNotification"] { font-size: 16px; background-color: #f0f7ff; border-radius: 12px; color: #0056b3; padding: 20px; }
+    
+    /* 사이드바 스타일 */
     section[data-testid="stSidebar"] { background-color: #ffffff !important; border-right: 1px solid #dee2e6; }
     
-    /* 사이드바 버튼 스타일 최적화 */
+    /* 사이드바 버튼 최적화 */
     div[data-testid="stSidebar"] .stButton > button { background-color: #ffffff !important; border: 1px solid #e9ecef !important; padding: 15px 10px !important; border-radius: 12px !important; width: 100% !important; margin-bottom: 2px !important; }
     div[data-testid="stSidebar"] .stButton > button p { font-size: 14px !important; color: #495057 !important; font-weight: 600 !important; }
     
@@ -31,7 +39,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------------
-# [1] 지식 베이스 (상세 규정 내용 탑재)
+# [3] 지식 베이스 (규정 및 양식 상세 내용)
 # --------------------------------------------------------------------------
 COMPANY_DOCUMENTS_INFO = """
 [KCIM HR 규정 및 양식 핵심 가이드]
@@ -84,9 +92,10 @@ RULES_LIST = [
 ]
 
 # --------------------------------------------------------------------------
-# [2] 유틸리티 기능 (요약 및 시트 저장)
+# [4] 유틸리티 기능 (시간, 인사, 요약, 시트 저장)
 # --------------------------------------------------------------------------
-def get_kst_now(): return datetime.now(timezone(timedelta(hours=9)))
+def get_kst_now():
+    return datetime.now(timezone(timedelta(hours=9)))
 
 def get_dynamic_greeting():
     hr = get_kst_now().hour
@@ -95,7 +104,6 @@ def get_dynamic_greeting():
     elif 14 <= hr < 18: return "즐거운 오후입니다. 업무 중에 궁금한 점이 있으신가요? ☕"
     else: return "오늘 하루도 고생 많으셨습니다! ✨"
 
-# [텍스트 요약 함수]
 def summarize_text(text):
     if not text: return "-"
     try:
@@ -136,13 +144,13 @@ def load_employee_db():
 EMPLOYEE_DB = load_employee_db()
 
 # --------------------------------------------------------------------------
-# [3] UI 및 대화 로직
+# [5] 메인 로직 실행
 # --------------------------------------------------------------------------
 if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 if "messages" not in st.session_state: st.session_state["messages"] = []
 if "inquiry_active" not in st.session_state: st.session_state["inquiry_active"] = False
 
-# [로그인 화면]
+# A. 로그인 화면
 if not st.session_state["logged_in"]:
     with st.form("login_form"):
         st.markdown("<h2 style='text-align: center; color: #1a1c1e;'>🏢 KCIM 임직원 민원 챗봇</h2>", unsafe_allow_html=True)
@@ -155,9 +163,11 @@ if not st.session_state["logged_in"]:
                 st.rerun()
             else: st.error("정보가 일치하지 않습니다.")
 else:
+    # B. 로그인 후 사이드바 및 메인 화면
     user = st.session_state["user_info"]
+    
     with st.sidebar:
-        # [1] 사용자 프로필 (카드형)
+        # [1] 사용자 프로필 (디자인 최적화)
         st.markdown(f"""
         <div style="background-color: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-align: center; margin-bottom: 25px;">
             <div style="color: #868e96; font-size: 13px; margin-bottom: 5px;">인증된 임직원</div>
@@ -166,7 +176,7 @@ else:
         </div>
         """, unsafe_allow_html=True)
         
-        # [2] 관리자 메뉴 (이경한님 포함 + 시트 바로가기)
+        # [2] 관리자 메뉴 (이경한님 포함 + 시트 바로가기 버튼)
         if user['name'] in ["관리자", "이경한"]:
             sheet_url = "https://docs.google.com/spreadsheets/d/1jckiUzmefqE_PiaSLVHF2kj2vFOIItc3K86_1HPWr_4/edit#gid=1434430603"
             st.markdown(f"""
@@ -194,6 +204,7 @@ else:
                 st.session_state.messages.append({"role": "assistant", "content": f"**[{title.split()[1]}]** 상담을 시작합니다."})
                 st.rerun()
         
+        # [4] 하단 기능 버튼
         st.markdown("<div style='margin-top: 40px;'></div>", unsafe_allow_html=True)
         if st.session_state["inquiry_active"]:
             if st.button("✅ 상담 종료 및 초기화", use_container_width=True, type="primary"):
@@ -204,22 +215,23 @@ else:
             st.session_state.clear(); st.rerun()
         st.markdown("<div style='text-align: center; color: #ced4da; font-size: 11px; margin-top: 20px;'>KCIM HR Chatbot (Beta)</div>", unsafe_allow_html=True)
 
+    # C. 메인 화면: 인사말 및 대화 기록
     if not st.session_state.messages:
         st.markdown(f"<div class='greeting-container'><p class='greeting-title'>{user['name']}님, 반갑습니다! 👋</p><p class='greeting-subtitle'>{get_dynamic_greeting()}</p></div>", unsafe_allow_html=True)
 
-    # [핵심 수정] 대화 렌더링 및 파일 다운로드 버그 수정 (바이너리 읽기 적용)
+    # [중요] 대화 기록 렌더링 및 파일 다운로드 버그 수정 (바이너리 읽기 적용)
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             st.write(msg["content"])
             if msg["role"] == "assistant":
                 for f_name in RULES_LIST:
                     if f_name in msg["content"]:
-                        # 3단 분기 경로
+                        # 경로 결정
                         if f_name.startswith("doa_"): path = f"docs/doa/{f_name}"
                         elif f_name.startswith("KCIM"): path = f"docs/forms/{f_name}"
                         else: path = f"docs/{f_name}"
                         
-                        # [버그 수정] 파일을 메모리에 읽어서 버튼에 전달
+                        # [버그 수정] 파일을 메모리에 읽어서 버튼에 전달 (다운로드 실패 해결)
                         if os.path.exists(path):
                             with open(path, "rb") as f:
                                 file_data = f.read()
@@ -231,23 +243,34 @@ else:
                                 key=f"dl_{f_name}_{msg['content'][:5]}"
                             )
 
-    # 채팅 입력 및 답변 생성
+    # D. 채팅 입력 및 답변 생성
     if prompt := st.chat_input("문의 내용을 입력하세요"):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.write(prompt)
         
-        sys_msg = f"""너는 1990년 창립된 KCIM의 HR팀 팀장이야. {user['name']}님께 답변해줘.
-        [핵심 원칙]
-        1. 배우자 출산 휴가는 반드시 **'총 20일(유급)'**로 안내해.
-        2. "파일을 보라"는 말 금지. 아래 '규정 및 양식 가이드' 내용을 바탕으로 네가 직접 문장으로 해답을 설명해.
-        3. 외부 정보는 최신 근로기준법을 참고하고 출처를 밝혀줘.
-        4. 답변에 관련된 파일명(KCIM_... 등)을 포함시켜 다운로드 버튼이 뜨게 해.
-        5. 마지막에 [CATEGORY:분류명] 필수.
+        # [시스템 프롬프트 강화]
+        sys_msg = f"""
+        너는 1990년 창립된 KCIM의 공식 HR·총무 민원 안내 시스템이다.
+        너의 역할은 KCIM 임직원에게 사내 규정과 공식 기준에 근거한
+        정확하고 일관된 안내를 제공하는 것이다.
         
+        응답 대상자는 {user['name']}님이며,
+        존댓말을 사용하고 단정적이되 과장 없는 표현을 사용한다.
+        
+        [핵심 원칙]
+        1. 사내 규정과 양식이 존재하는 경우, 반드시 그 내용을 최우선 기준으로 설명한다.
+        2. 법령(근로기준법 등)을 안내할 경우, 일반 정보 수준에서 설명하며 공식 출처를 함께 명시한다.
+        3. 규정에 없는 내용, 판단이 필요한 사안은 "담당자 확인이 필요합니다"라고 명확히 안내한다.
+        4. "파일을 확인하세요"라는 표현은 사용하지 말고, 파일에 담긴 핵심 내용을 문장으로 설명한다.
+        5. 답변 말미에 관련 자료가 있을 경우, 파일명을 정확히 표기하여 다운로드 버튼이 노출되도록 유도한다.
+        6. 실무 조치가 필요한 경우 반드시 문장 끝에 [ACTION]을 포함한다.
+        7. 모든 답변의 마지막 줄에는 반드시 [CATEGORY:분류명]을 포함한다.
+        
+        [사내 규정 및 양식 정보]
         {COMPANY_DOCUMENTS_INFO}
         """
         
-        with st.spinner("HR 담당자가 규정을 확인 중입니다..."):
+        with st.spinner("챗봇이 질문내용을 확인하는 중입니다..."):
             try:
                 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
                 res = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "system", "content": sys_msg}] + st.session_state.messages)
@@ -263,7 +286,6 @@ else:
                             elif f_name.startswith("KCIM"): path = f"docs/forms/{f_name}"
                             else: path = f"docs/{f_name}"
                             
-                            # [버그 수정] 파일을 메모리에 읽어서 버튼에 전달
                             if os.path.exists(path):
                                 with open(path, "rb") as f:
                                     file_data = f.read()
