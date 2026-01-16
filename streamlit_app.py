@@ -10,7 +10,7 @@ import re
 # 1. 페이지 설정
 st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢", layout="centered")
 
-# --- UI 커스텀 CSS (디자인 절대 유지) ---
+# --- UI 커스텀 CSS ---
 st.markdown("""
     <style>
     .stApp { background-color: #f4f7f9; }
@@ -19,10 +19,9 @@ st.markdown("""
     div[data-testid="stNotification"] { font-size: 16px; background-color: #f0f7ff; border-radius: 12px; color: #0056b3; padding: 20px; }
     section[data-testid="stSidebar"] { background-color: #ffffff !important; border-right: 1px solid #dee2e6; }
     
-    /* 사이드바 버튼 스타일 최적화 */
-    div[data-testid="stSidebar"] .stButton > button { background-color: #ffffff !important; border: 1px solid #e9ecef !important; padding: 18px 15px !important; border-radius: 15px !important; width: 100% !important; margin-bottom: -5px !important; }
-    div[data-testid="stSidebar"] .stButton > button div[data-testid="stMarkdownContainer"] p { font-size: 13px; color: #666; line-height: 1.5; white-space: pre-line; text-align: left; margin: 0; }
-    div[data-testid="stSidebar"] .stButton > button div[data-testid="stMarkdownContainer"] p::first-line { font-size: 16px; font-weight: 700; color: #1a1c1e; }
+    /* 사이드바 버튼 최적화 */
+    div[data-testid="stSidebar"] .stButton > button { background-color: #ffffff !important; border: 1px solid #e9ecef !important; padding: 15px 10px !important; border-radius: 12px !important; width: 100% !important; margin-bottom: 2px !important; }
+    div[data-testid="stSidebar"] .stButton > button p { font-size: 14px !important; color: #495057 !important; font-weight: 600 !important; }
     
     .beta-notice { font-size: 12px; color: #999; text-align: center; margin-top: 60px !important; line-height: 1.6; }
     .greeting-container { text-align: center; margin-bottom: 45px; padding: 25px 0; }
@@ -32,7 +31,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------------
-# [1] 규정 및 양식 파일 지식 베이스 (상세 내용 탑재 완료)
+# [1] 지식 베이스 (텍스트 기반 규정 상세)
 # --------------------------------------------------------------------------
 COMPANY_DOCUMENTS_INFO = """
 [KCIM HR 규정 및 양식 핵심 가이드]
@@ -85,7 +84,7 @@ RULES_LIST = [
 ]
 
 # --------------------------------------------------------------------------
-# [2] 유틸리티 기능
+# [2] 유틸리티 기능 (요약 기능 강화)
 # --------------------------------------------------------------------------
 def get_kst_now(): return datetime.now(timezone(timedelta(hours=9)))
 
@@ -96,15 +95,24 @@ def get_dynamic_greeting():
     elif 14 <= hr < 18: return "즐거운 오후입니다. 업무 중에 궁금한 점이 있으신가요? ☕"
     else: return "오늘 하루도 고생 많으셨습니다! ✨"
 
+# [핵심] 텍스트 요약 함수 (시트 저장용)
 def summarize_text(text):
+    if not text: return "-"
     try:
         client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-        res = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "system", "content": "핵심 요약 전문가."}, {"role": "user", "content": text}], temperature=0)
+        res = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "너는 텍스트 요약 전문가야. 사용자의 긴 질문이나 답변을 '명사형 종결 어미'를 사용해 한 줄로 핵심만 요약해줘. (예: 배우자 출산 휴가 일수 문의)"},
+                {"role": "user", "content": text}
+            ],
+            temperature=0
+        )
         return res.choices[0].message.content.strip()
-    except: return "-"
+    except: return text[:50] + "..." # API 실패 시 앞부분만 자름
 
 def save_to_sheet(dept, name, rank, category, question, answer, status):
-    # 실제 사용하시는 구글 시트 URL이 맞는지 꼭 확인해주세요
+    # 실제 구글 시트 URL
     url = "https://docs.google.com/spreadsheets/d/1jckiUzmefqE_PiaSLVHF2kj2vFOIItc3K86_1HPWr_4/edit#gid=1434430603"
     try:
         creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["google_sheets"]), ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'])
@@ -149,7 +157,7 @@ if not st.session_state["logged_in"]:
 else:
     user = st.session_state["user_info"]
     with st.sidebar:
-        # [1] 사용자 프로필 카드 (디자인 최적화 적용됨)
+        # [1] 사용자 프로필 (카드형)
         st.markdown(f"""
         <div style="background-color: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-align: center; margin-bottom: 25px;">
             <div style="color: #868e96; font-size: 13px; margin-bottom: 5px;">인증된 임직원</div>
@@ -158,7 +166,7 @@ else:
         </div>
         """, unsafe_allow_html=True)
         
-        # [2] 관리자 전용 메뉴 (이경한님 포함 + 아이콘 박스 링크)
+        # [2] 관리자 메뉴 (이경한님 포함 + 시트 바로가기)
         if user['name'] in ["관리자", "이경한"]:
             sheet_url = "https://docs.google.com/spreadsheets/d/1jckiUzmefqE_PiaSLVHF2kj2vFOIItc3K86_1HPWr_4/edit#gid=1434430603"
             st.markdown(f"""
@@ -171,26 +179,21 @@ else:
             </a>
             """, unsafe_allow_html=True)
 
-       # [3] 민원 카테고리 (한 줄 최적화 디자인)
+        # [3] 민원 카테고리 (한 줄 최적화)
         st.caption("문의하실 주제를 선택하세요")
         cats = [
-            ("🛠️ 시설/수리", "유지보수"), 
-            ("👤 인사/채용", "제증명/발령"), 
-            ("📋 규정/보안", "사내규정"), 
-            ("🎁 복지/휴가", "지원금/휴가"), 
-            ("📢 불편사항", "고충 접수"), 
-            ("💬 일반/기타", "단순 문의")
+            ("🛠️ 시설/수리", "유지보수"), ("👤 인사/채용", "제증명/발령"), 
+            ("📋 규정/보안", "사내규정"), ("🎁 복지/휴가", "지원금/휴가"), 
+            ("📢 불편사항", "고충 접수"), ("💬 일반/기타", "단순 문의")
         ]
         
         for title, desc in cats:
-            # [수정 포인트] \n을 제거하고 "제목 | 설명" 형태로 한 줄 배치
             btn_label = f"{title} | {desc}"
             if st.button(btn_label, key=title, disabled=st.session_state["inquiry_active"], use_container_width=True):
                 st.session_state["inquiry_active"] = True
-                st.session_state.messages.append({"role": "assistant", "content": f"**[{title.split()[1]}]** 상담을 시작합니다. 무엇을 도와드릴까요?"})
+                st.session_state.messages.append({"role": "assistant", "content": f"**[{title.split()[1]}]** 상담을 시작합니다."})
                 st.rerun()
         
-        # [4] 하단 기능 버튼
         st.markdown("<div style='margin-top: 40px;'></div>", unsafe_allow_html=True)
         if st.session_state["inquiry_active"]:
             if st.button("✅ 상담 종료 및 초기화", use_container_width=True, type="primary"):
@@ -218,7 +221,7 @@ else:
                             with open(path, "rb") as f:
                                 st.download_button(label=f"📂 {f_name} 다운로드", data=f, file_name=f_name, key=f"dl_{f_name}_{msg['content'][:5]}")
 
-    # 채팅 입력 및 직접 답변 로직 강화
+    # 채팅 입력 및 요약 저장 기능 적용
     if prompt := st.chat_input("문의 내용을 입력하세요"):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.write(prompt)
@@ -254,6 +257,11 @@ else:
                                     st.download_button(label=f"📂 {f_name} 다운로드", data=f, file_name=f_name, key=f"new_{f_name}")
 
                 st.session_state.messages.append({"role": "assistant", "content": clean_ans})
-                save_to_sheet(user['dept'], user['name'], user['rank'], category, summarize_text(prompt), summarize_text(clean_ans), "처리완료")
+                
+                # [요약 저장 기능 호출]
+                q_summary = summarize_text(prompt)
+                a_summary = summarize_text(clean_ans)
+                save_to_sheet(user['dept'], user['name'], user['rank'], category, q_summary, a_summary, "처리완료")
+                
                 st.rerun() 
             except Exception as e: st.error(f"오류: {e}")
