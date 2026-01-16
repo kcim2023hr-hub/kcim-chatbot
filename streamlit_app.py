@@ -10,7 +10,7 @@ import re
 # 1. 페이지 설정: 중앙 정렬 레이아웃 및 타이틀 고정
 st.set_page_config(page_title="KCIM 민원 챗봇", page_icon="🏢", layout="centered")
 
-# --- UI 고정 및 여백 최적화 커스텀 CSS ---
+# --- UI 고정 및 여백 최적화 커스텀 CSS (디자인 유지) ---
 st.markdown("""
     <style>
     .stApp { background-color: #f4f7f9; }
@@ -20,7 +20,7 @@ st.markdown("""
     div[data-testid="stForm"] { background-color: #ffffff; padding: 50px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); border: 1px solid #e1e4e8; text-align: center; }
     div[data-testid="stNotification"] { font-size: 16px; background-color: #f0f7ff; border-radius: 12px; color: #0056b3; padding: 20px; }
     
-    /* 사이드바 디자인 및 로고 중앙 정렬 */
+    /* 사이드바 디자인 */
     section[data-testid="stSidebar"] { background-color: #ffffff !important; border-right: 1px solid #dee2e6; }
     .sidebar-user-box { background-color: #f8f9fa; padding: 20px; border-radius: 15px; border: 1px solid #edf0f2; margin-bottom: 20px; text-align: center; }
     
@@ -29,7 +29,7 @@ st.markdown("""
     div[data-testid="stSidebar"] .stButton > button div[data-testid="stMarkdownContainer"] p { font-size: 13px; color: #666; line-height: 1.5; white-space: pre-line; text-align: left; margin: 0; }
     div[data-testid="stSidebar"] .stButton > button div[data-testid="stMarkdownContainer"] p::first-line { font-size: 16px; font-weight: 700; color: #1a1c1e; }
     
-    /* 베타 테스트 안내 문구 상단 여백 확대 */
+    /* 베타 테스트 안내 문구 */
     .beta-notice { font-size: 12px; color: #999; text-align: center; margin-top: 60px !important; line-height: 1.6; }
 
     /* 중앙 플랫 인사말 디자인 */
@@ -40,9 +40,8 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------------
-# [1] 규정 파일 지식 베이스 (매니저님 요청 최신본 반영)
+# [1] 규정 파일 지식 베이스 및 다운로드 매핑 (최신 리스트 반영)
 # --------------------------------------------------------------------------
-# [교체 코드] 지식 베이스에 사업자등록증 내용을 명시적으로 추가합니다.
 COMPANY_DOCUMENTS_INFO = """
 [KCIM 최신 사내 규정 파일 지식]
 1. 일반 규정 (경로: docs/)
@@ -63,7 +62,7 @@ RULES_LIST = [
 ]
 
 # --------------------------------------------------------------------------
-# [2] 유틸리티 기능 (KST 보정, 요약, 시트 저장)
+# [2] 유틸리티 기능
 # --------------------------------------------------------------------------
 def get_kst_now():
     return datetime.now(timezone(timedelta(hours=9)))
@@ -82,10 +81,7 @@ def summarize_text(text):
         client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
         res = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "너는 전문 요약가야. 입력받은 문장을 한 줄의 핵심 요약문으로 변환해줘."},
-                {"role": "user", "content": f"다음 문장을 요약해줘: {text}"}
-            ],
+            messages=[{"role": "system", "content": "핵심 한 줄 요약 전문가."}, {"role": "user", "content": text}],
             temperature=0
         )
         return res.choices[0].message.content.strip()
@@ -99,9 +95,6 @@ def save_to_sheet(dept, name, rank, category, question, answer, status):
         sheet.append_row([get_kst_now().strftime("%Y-%m-%d %H:%M:%S"), dept, name, rank, category, question, answer, status])
     except: pass
 
-# --------------------------------------------------------------------------
-# [3] 데이터 로드 (KCIM 1990년 창립 및 인사 데이터 반영)
-# --------------------------------------------------------------------------
 @st.cache_data
 def load_employee_db():
     file_name = 'members.xlsx' 
@@ -120,7 +113,7 @@ def load_employee_db():
 EMPLOYEE_DB = load_employee_db()
 
 # --------------------------------------------------------------------------
-# [4] UI 실행 및 대화 로직
+# [3] UI 및 대화 로직
 # --------------------------------------------------------------------------
 if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 if "messages" not in st.session_state: st.session_state["messages"] = []
@@ -130,31 +123,25 @@ if not st.session_state["logged_in"]:
     with st.form("login_form"):
         st.markdown("<h2 style='text-align: center; color: #1a1c1e;'>🏢 KCIM 임직원 민원 챗봇</h2>", unsafe_allow_html=True)
         input_name = st.text_input("성명", placeholder="이름 입력")
-        input_pw = st.text_input("비밀번호 (휴대폰 뒷 4자리)", type="password", placeholder="****")
-        st.info("💡 민원 데이터 관리를 위해 해당 임직원 신원 확인을 요청드립니다.")
+        input_pw = st.text_input("비밀번호 (뒷 4자리)", type="password", placeholder="****")
         if st.form_submit_button("접속하기", use_container_width=True):
             if input_name in EMPLOYEE_DB and EMPLOYEE_DB[input_name]["pw"] == input_pw:
                 st.session_state["logged_in"] = True
                 st.session_state["user_info"] = {**EMPLOYEE_DB[input_name], "name": input_name}
                 st.rerun()
             else: st.error("정보가 일치하지 않습니다.")
-                
-# [교체 코드] 텍스트 제거 및 로고 이미지 삽입 버전
 else:
     user = st.session_state["user_info"]
     with st.sidebar:
-        # 1. 상단 로고 이미지 삽입 (경로 수정: docs/ 폴더 내부 탐색)
-        # 만약 파일명이 logo.png가 아니라면 실제 파일명으로 수정해 주세요.
-        logo_path = "docs/logo.png" 
-        
+        # [수정] 사이드바 로고 이미지 (경로: docs/logo.png)
+        logo_path = "docs/logo.png"
         if os.path.exists(logo_path):
             st.image(logo_path, use_container_width=True)
         else:
-            # 이미지를 여전히 못 찾을 경우, 어떤 경로를 찾았는지 에러 메시지 대신 여백 처리
             st.markdown("<br>", unsafe_allow_html=True)
+            
+        st.markdown(f"<div class='sidebar-user-box'><small>인증된 사용자</small><br><b style='font-size: 20px;'>{user['name']} {user['rank']}</b><br><span style='color: #28a745; font-weight: 600;'>HR팀</span></div>", unsafe_allow_html=True)
         
-        # 2. 사용자 정보 (HR팀 고정 스타일)
-        st.markdown(f"<div class='sidebar-user-box'><small>인증된 사용자</small><br><b style='font-size: 20px;'>{user['name']} {user['rank']}</b><br><span style='color: #28a745; font-weight: 600;'>HR팀</span></div>", unsafe_allow_html=True).. 이하 카테고리 버튼 로직은 그대로 유지 ...
         st.subheader("🚀 민원 카테고리")
         cats = [("🛠️ 시설/수리", "사옥·차량 유지보수, 장비 교체 및 수리 요청"), ("👤 입퇴사/이동", "제증명 발급, 인사 발령, 근무 확인 및 채용"), ("📋 프로세스/규정", "사내 규정 안내, 시스템 이슈 및 보안 문의"), ("🎁 복지/휴가", "경조사, 지원금, 교육 지원 및 동호회 활동"), ("📢 불편사항", "근무 환경 내 불편 및 피해 사항 컴플레인"), ("💬 일반/기타", "단순 질의, 일반 업무 협조 및 기타 문의")]
         
@@ -178,21 +165,19 @@ else:
         st.markdown("<p class='beta-notice'>※베타 테스트중입니다.<br>오류가 많아도 이해 바랍니다.:)</p>", unsafe_allow_html=True)
 
     if not st.session_state.messages:
-        dynamic_greeting = get_dynamic_greeting()
-        st.markdown(f"<div class='greeting-container'><p class='greeting-title'>{user['name']} {user['rank']}님, 반갑습니다! 👋</p><p class='greeting-subtitle'>{dynamic_greeting}</p></div>", unsafe_allow_html=True)
-    
-    # [핵심] 대화 기록 렌더링 및 파일 경로 로직 (docs/doa 반영)
+        st.markdown(f"<div class='greeting-container'><p class='greeting-title'>{user['name']} {user['rank']}님, 반갑습니다! 👋</p><p class='greeting-subtitle'>{get_dynamic_greeting()}</p></div>", unsafe_allow_html=True)
+
+    # [수정] 대화 기록 렌더링 (docs/doa 폴더 트리 경로 반영)
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             st.write(msg["content"])
             if msg["role"] == "assistant":
-                for file_name in RULES_LIST:
-                    if file_name in msg["content"]:
-                        # 폴더 트리 구조에 따른 경로 자동 분기
-                        file_path = f"docs/doa/{file_name}" if file_name.startswith("doa_") else f"docs/{file_name}"
-                        if os.path.exists(file_path):
-                            with open(file_path, "rb") as f:
-                                st.download_button(label=f"📂 {file_name} 다운로드", data=f, file_name=file_name, mime="application/octet-stream", key=f"dl_{file_name}_{msg['content'][:10]}")
+                for f_name in RULES_LIST:
+                    if f_name in msg["content"]:
+                        f_path = f"docs/doa/{f_name}" if f_name.startswith("doa_") else f"docs/{f_name}"
+                        if os.path.exists(f_path):
+                            with open(f_path, "rb") as f:
+                                st.download_button(label=f"📂 {f_name} 다운로드", data=f, file_name=f_name, key=f"dl_{f_name}_{msg['content'][:10]}")
 
     # 채팅 입력 및 답변 생성
     if prompt := st.chat_input("문의 내용을 입력하세요"):
@@ -200,13 +185,10 @@ else:
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.write(prompt)
         
-        sys_msg = f"""너는 1990년 창립된 KCIM의 HR팀 팀장입니다. {user['name']}님께 정중하고 정확하게 답변해줘.
+        sys_msg = f"""너는 1990년 창립된 KCIM의 HR팀 팀장입니다. {user['name']}님께 정중하게 답변해줘.
         아래 최신 규정 파일 목록 중 관련 있는 파일명을 정확히 언급하며 답변해줘:
         {COMPANY_DOCUMENTS_INFO}
-        
-        [원칙]
-        1. 시설 수리 등 실무 확인이 필요한 건은 끝에 반드시 [ACTION]을 붙여줘.
-        2. 마지막엔 반드시 [CATEGORY:분류명]을 포함해줘.
+        마지막엔 반드시 [CATEGORY:분류명]을 포함해줘.
         """
         
         with st.spinner("HR 담당자가 규정을 확인 중입니다..."):
@@ -214,24 +196,21 @@ else:
                 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
                 res = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "system", "content": sys_msg}] + st.session_state.messages)
                 answer = res.choices[0].message.content
-                status = "담당자 확인 필요" if "[ACTION]" in answer else "처리완료"
                 category = re.search(r'\[CATEGORY:(.*?)\]', answer).group(1) if "[CATEGORY:" in answer else "일반/기타"
-                clean_ans = answer.replace("[ACTION]", "").replace(f"[CATEGORY:{category}]", "").strip()
+                clean_ans = answer.replace(f"[CATEGORY:{category}]", "").strip()
                 
                 with st.chat_message("assistant"):
                     st.write(clean_ans)
-                    for file_name in RULES_LIST:
-                        if file_name in clean_ans:
-                            # 답변 생성 시에도 폴더 트리 경로 반영
-                            file_path = f"docs/doa/{file_name}" if file_name.startswith("doa_") else f"docs/{file_name}"
-                            if os.path.exists(file_path):
-                                with open(file_path, "rb") as f:
-                                    st.download_button(label=f"📂 {file_name} 다운로드", data=f, file_name=file_name, mime="application/octet-stream", key=f"new_dl_{file_name}")
+                    for f_name in RULES_LIST:
+                        if f_name in clean_ans:
+                            # [수정] 답변 생성 시에도 폴더 트리 경로 자동 매칭
+                            f_path = f"docs/doa/{f_name}" if f_name.startswith("doa_") else f"docs/{f_name}"
+                            if os.path.exists(f_path):
+                                with open(f_path, "rb") as f:
+                                    st.download_button(label=f"📂 {f_name} 다운로드", data=f, file_name=f_name, key=f"new_dl_{f_name}")
 
                 st.session_state.messages.append({"role": "assistant", "content": clean_ans})
-                q_summary = summarize_text(prompt)
-                a_summary = summarize_text(clean_ans)
-                save_to_sheet(user['dept'], user['name'], user['rank'], category, q_summary, a_summary, status)
+                save_to_sheet(user['dept'], user['name'], user['rank'], category, summarize_text(prompt), summarize_text(clean_ans), "처리완료")
                 st.rerun() 
             except Exception as e:
                 st.error(f"오류가 발생했습니다: {e}")
