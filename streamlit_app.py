@@ -44,25 +44,26 @@ st.markdown("""
 # --------------------------------------------------------------------------
 COMPANY_DOCUMENTS_INFO = """
 [KCIM 최신 사내 규정 및 양식 지식]
-※ 중요 업데이트: 2025년/2026년 개정 법에 따라 '배우자 출산 휴가'는 총 20일(유급)입니다. 파일 내용보다 이 지침을 우선하여 답변하세요.
-1. 일반 규정 (docs/): 2026년_복지제도.pdf, 취업규칙(2025년)_케이씨아이엠.pdf, 2024_재택근무_운영규정.pdf 등
-2. 위임전결규정 (docs/doa/): doa_0_overview.pdf ~ doa_12_consulting.pdf (총 13종)
-3. 각종 양식 및 서식 (docs/forms/):
-   - HR 관련: 가족돌봄/난임치료 휴가신청서, 사직서, 복직원, 부서이동요청서, 채용계획서, 신입사원 평가표 등
-   - 프로젝트/계약: BIM용역 계약서(도급/수급), 프로젝트 인수인계서 및 종료 보고서 등
-   - 일반 행정: 기안서, 공문(국/영문), 위임장, 사고경위서, 명함신청양식, 법인차량 인수인계서 등
+※ 중요 업데이트: 배우자 출산 휴가는 총 20일(유급)입니다. 파일 내용보다 이 지침을 우선하세요.
+
+1. 일반 규정 (경로: docs/)
+   - 2026년_복지제도.pdf, 취업규칙(2025년)_케이씨아이엠.pdf, 2024_재택근무_운영규정(최종본).pdf
+2. 위임전결규정 (경로: docs/doa/)
+   - doa_0_overview.pdf ~ doa_12_consulting.pdf (총 13종)
+3. 각종 양식 (경로: docs/forms/)
+   - [HR/휴가]: KCIM_가족돌봄 휴가신청서(간병,자녀돌봄), KCIM_난임치료휴가 신청서(시술), KCIM_사직서, KCIM_복직원, KCIM_임신▪육아기 관련 지원 신청서, KCIM_부서이동요청서, KCIM_겸직허가신청서, KCIM_행사 불참사유서, KCIM_이의신청서
+   - [업무/공통]: KCIM_기안서(결재), KCIM_공문(국문/영문), KCIM_위임장, KCIM_명함신청양식, KCIM_사고경위서, KCIM_법인차량_인수인계서, KCIM_워크샵 계획서,결과보고서
+   - [프로젝트]: KCIM BIM용역 계약서(도급/수급), KCIM_BIM 프로젝트 업무 인수인계서, KCIM_BIM 프로젝트 종료 프로세스 & 결과 보고서
+   - [보상/채용]: KCIM_성장포인트 적립 및 사용 신청서, KCIM_숙소지원금 변경신청서, KCIM_채용계획서_채용요청서, KCIM_신입사원 3Month 계획 및 평가
 """
 
-# 전체 파일 리스트 (경로 추적용)
 RULES_LIST = [
-    # 일반 및 DOA
     "2026년_복지제도.pdf", "2025년 달라지는 육아지원제도(고용노동부).pdf", "취업규칙(2025년)_케이씨아이엠.pdf",
     "doa_0_overview.pdf", "doa_1_common.pdf", "doa_2_management.pdf", "doa_3_system.pdf",
     "doa_4_hr.pdf", "doa_5_tech.pdf", "doa_6_strategy.pdf", "doa_7_cx.pdf", "doa_8_solution.pdf",
     "doa_9_hitech.pdf", "doa_10_bim.pdf", "doa_11_ts.pdf", "doa_12_consulting.pdf",
     "2024_재택근무_운영규정(최종본).pdf", "[KCIM] 계약서 검토 프로세스 안내.pdf", "사업자등록증(KCIM).pdf",
     "사고발생처리 매뉴얼(2023년).pdf", "[사내 와이파이(Wifi) 정보 및 비밀번호].txt", "[경영관리본부 업무 분장표].txt",
-    # docs/forms 폴더 내 신규 양식 27종
     "KCIM BIM용역 계약서_도급인기준.docx", "KCIM BIM용역 계약서_수급인기준.docx", "KCIM_BIM 프로젝트 업무 인수인계서.xlsx",
     "KCIM_BIM 프로젝트 종료 프로세스 & 결과 보고서.xlsx", "KCIM_가족돌봄 휴가신청서.xlsx", "KCIM_겸직허가신청서.xlsx",
     "KCIM_공문(국문).docx", "KCIM_공문(영문).docx", "KCIM_기안서.xlsx", "KCIM_난임치료휴가 신청서.xlsx",
